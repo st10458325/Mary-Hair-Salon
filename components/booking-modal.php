@@ -8,7 +8,7 @@
  * only the color theme changed (orange/glass instead of pink).
  *
  * Include it ONCE per page, then open it from anywhere:
- *   window.openBookingModal({ title: 'Box Braids', price: 'From R450' });
+ *   window.openBookingModal({ category: 'braids', title: 'Box Braids', price: 'From R450' });
  *
  * The Service/Style dropdowns use a small static catalog for now
  * (no DB yet) — once services live in a database, swap the
@@ -73,22 +73,10 @@
             <span class="bm-field__label">Service</span>
             <select name="service" id="bmService">
               <option value="" selected disabled>Select a service</option>
-              <optgroup label="Braids">
-                <option value="Box Braids">Box Braids</option>
-                <option value="Knotless Braids">Knotless Braids</option>
-              </optgroup>
-              <optgroup label="Hair Cuts">
-                <option value="Classic Bob Cut">Classic Bob Cut</option>
-                <option value="Layered Cut & Style">Layered Cut &amp; Style</option>
-              </optgroup>
-              <optgroup label="Kids Styles">
-                <option value="Kids Cornrows">Kids Cornrows</option>
-                <option value="Kids Twist Out">Kids Twist Out</option>
-              </optgroup>
-              <optgroup label="Wig Services">
-                <option value="Lace Front Wig Install">Lace Front Wig Install</option>
-                <option value="Closure Wig Install">Closure Wig Install</option>
-              </optgroup>
+              <option value="braids">Braids</option>
+              <option value="haircuts">Hair Cuts</option>
+              <option value="kids">Kids Styles</option>
+              <option value="wigs">Wig Services</option>
             </select>
           </span>
           <svg class="bm-chev" width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 4l3.5 3.5L9 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -98,11 +86,8 @@
           <span class="bm-field__icon"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1.5L9 5l3.5.5-2.5 2.5.6 3.5L7.5 10 4.4 11.5l.6-3.5L2.5 5.5 6 5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg></span>
           <span class="bm-field__body">
             <span class="bm-field__label">Style</span>
-            <select name="style" id="bmStyle">
+            <select name="style" id="bmStyle" disabled>
               <option value="" selected disabled>Select a style</option>
-              <option value="Classic">Classic</option>
-              <option value="Modern">Modern</option>
-              <option value="Custom">Custom</option>
             </select>
           </span>
           <svg class="bm-chev" width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 4l3.5 3.5L9 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -476,6 +461,39 @@
   const form = document.getElementById('bookingForm');
   let lastFocused = null;
 
+  const styleCatalog = {
+    braids: ['Box Braids', 'Knotless Braids'],
+    haircuts: ['Classic Bob Cut', 'Layered Cut & Style'],
+    kids: ['Kids Cornrows', 'Kids Twist Out'],
+    wigs: ['Lace Front Wig Install', 'Closure Wig Install'],
+  };
+
+  const serviceSelect = document.getElementById('bmService');
+  const styleSelect = document.getElementById('bmStyle');
+
+  function setSelectValue(select, value){
+    if(value == null || value === '') return false;
+    const option = Array.from(select.options).find(item => item.value === value);
+    if(!option) return false;
+    select.value = value;
+    return true;
+  }
+
+  function populateStyles(category, preferredStyle){
+    styleSelect.innerHTML = '<option value="" selected disabled>Select a style</option>';
+
+    const styles = styleCatalog[category] || [];
+    styles.forEach(style => {
+      const option = document.createElement('option');
+      option.value = style;
+      option.textContent = style;
+      styleSelect.appendChild(option);
+    });
+
+    styleSelect.disabled = styles.length === 0;
+    if(preferredStyle) setSelectValue(styleSelect, preferredStyle);
+  }
+
   /* ---------------- Booking type ---------------- */
   const incallOption = document.getElementById('bmIncall');
   const outcallOption = document.getElementById('bmOutcall');
@@ -616,15 +634,18 @@
   /* ---------------- Summary ---------------- */
   function formatZAR(n){ return 'R' + n.toFixed(2); }
 
+  function selectedText(select){
+    const option = select.selectedOptions && select.selectedOptions[0];
+    return option ? option.textContent : '-';
+  }
+
   function updateSummary(){
-    const serviceSel = document.getElementById('bmService');
-    const styleSel = document.getElementById('bmStyle');
     const cost = parseFloat(document.getElementById('bmCost').value) || 0;
     const discount = parseFloat(document.getElementById('bmDiscount').value) || 0;
     const location = document.getElementById('bmLocationInput').value || '-';
 
-    document.getElementById('bmSumService').textContent = serviceSel.value || '-';
-    document.getElementById('bmSumStyle').textContent = styleSel.value || '-';
+    document.getElementById('bmSumService').textContent = selectedText(serviceSelect);
+    document.getElementById('bmSumStyle').textContent = selectedText(styleSelect);
     document.getElementById('bmSumType').textContent = bookingType;
     document.getElementById('bmSumDate').textContent = formatSelectedDate();
     document.getElementById('bmSumTime').textContent = selectedTime || '-';
@@ -641,22 +662,37 @@
     el.addEventListener('change', updateSummary);
   });
 
+  serviceSelect.addEventListener('change', () => {
+    populateStyles(serviceSelect.value, '');
+    updateSummary();
+  });
+
   /* ---------------- Prefill from a clicked service card ---------------- */
   window.openBookingModal = function(service){
     service = service || {};
-    const serviceSel = document.getElementById('bmService');
     const costInput = document.getElementById('bmCost');
 
-    if(service.title){
-      const match = Array.from(serviceSel.options).find(o => o.value === service.title);
-      serviceSel.value = match ? service.title : serviceSel.value;
-      document.getElementById('bookingModalService').textContent = `Booking: ${service.title}`;
+    if(service.category){
+      const categorySet = setSelectValue(serviceSelect, service.category);
+      populateStyles(service.category, service.title || '');
+      if(categorySet && service.title){
+        setSelectValue(styleSelect, service.title);
+      }
+      document.getElementById('bookingModalService').textContent = service.title
+        ? `Booking: ${service.categoryLabel || selectedText(serviceSelect)} / ${service.title}`
+        : `Booking: ${service.categoryLabel || selectedText(serviceSelect)}`;
     } else {
       document.getElementById('bookingModalService').textContent = 'Fill in your details below to secure your booking.';
     }
+
     if(service.price){
       const numeric = (service.price.match(/\d+/) || [''])[0];
       if(numeric) costInput.value = numeric;
+    }
+
+    if(!service.category){
+      populateStyles('', '');
+      serviceSelect.value = '';
     }
 
     updateSummary();
@@ -697,6 +733,7 @@
   });
 
   /* ---------------- Init ---------------- */
+  populateStyles('', '');
   setBookingType('Outcall');
   renderCalendar();
   renderTimeSlots();

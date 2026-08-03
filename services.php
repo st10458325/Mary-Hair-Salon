@@ -265,7 +265,13 @@ unset($cat);
     window.openBookingModal({
       title: btn.dataset.serviceTitle,
       price: btn.dataset.servicePrice,
-      category: btn.dataset.serviceCategory
+      category: btn.dataset.serviceCategory,
+      categoryLabel: ({
+        braids: 'Braids',
+        haircuts: 'Hair Cuts',
+        kids: 'Kids Styles',
+        wigs: 'Wig Services',
+      })[btn.dataset.serviceCategory] || btn.dataset.serviceCategory
     });
   });
 })();
