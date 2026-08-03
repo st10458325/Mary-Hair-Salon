@@ -9,8 +9,8 @@
 <footer class="site-footer">
   <div class="site-footer__inner">
     <div class="site-footer__brand">
-      <span class="site-footer__name">CROWNED</span>
-      <span class="site-footer__sub">BEAUTY STUDIO</span>
+      <span class="site-footer__name">Mary</span>
+      <span class="site-footer__sub">Hair salon</span>
     </div>
 
     <div class="site-footer__social">
@@ -33,7 +33,7 @@
   </div>
 
   <div class="site-footer__bottom">
-    <p>&copy; 2026 Crowned Beauty Studio. All rights reserved.</p>
+    <p>&copy; 2026 Mary Hair salon. All rights reserved.</p>
   </div>
 </footer>
 

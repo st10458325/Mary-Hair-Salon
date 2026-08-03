@@ -31,8 +31,8 @@ if (!function_exists('nav_is_current')) {
         <path d="M6 24H28" stroke="#e8551c" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
       <span class="site-nav__brand-text">
-        <span class="site-nav__name">CROWNED</span>
-        <span class="site-nav__sub">BEAUTY&nbsp;STUDIO</span>
+        <span class="site-nav__name">Mary</span>
+        <span class="site-nav__sub">Hair&nbsp;salon</span>
       </span>
     </a>
 

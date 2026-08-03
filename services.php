@@ -1,6 +1,6 @@
 <?php
 /**
- * services.php — Crowned Beauty Studio
+ * services.php — Mary Hair salon
  * ---------------------------------------------------------------
  * This page is an assembly point, not a place to add styling.
  * Every visual piece (nav, footer, cards, search bar, booking
@@ -50,7 +50,7 @@ unset($cat);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Our Services — Crowned Beauty Studio</title>
+<title>Our Services — Mary Hair salon</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>

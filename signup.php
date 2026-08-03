@@ -1,6 +1,6 @@
 <?php
 /**
- * signup.php — Crowned Beauty Studio
+ * signup.php — Mary Hair salon
  * ---------------------------------------------------------------
  * Standalone page version of the signup form — mirrors login.php,
  * both reuse components/auth-form.php.
@@ -13,7 +13,7 @@ require_once __DIR__ . '/components/auth-form.php';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign Up — Crowned Beauty Studio</title>
+<title>Sign Up — Mary Hair salon</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>

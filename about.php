@@ -1,6 +1,6 @@
 <?php
 /**
- * about.php — Crowned Beauty Studio
+ * about.php — Mary Hair salon
  * ---------------------------------------------------------------
  */
 require_once __DIR__ . '/components/hero.php';
@@ -18,7 +18,7 @@ $stats = [
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>About Us — Crowned Beauty Studio</title>
+<title>About Us — Mary Hair salon</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -28,7 +28,7 @@ $stats = [
 <?php render_hero([
     'eyebrow' => 'About Us',
     'title'   => 'The Studio Behind the Crown',
-    'text'    => 'Crowned Beauty Studio started as a single chair and a waitlist. Today it\'s a team dedicated to one thing: hair that makes you feel like you.',
+    'text'    => 'Mary Hair salon started as a single chair and a waitlist. Today it\'s a team dedicated to one thing: hair that makes you feel like you.',
     'compact' => true,
 ]); ?>
 

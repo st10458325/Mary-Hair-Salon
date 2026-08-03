@@ -1,6 +1,6 @@
 <?php
 /**
- * contact.php — Crowned Beauty Studio
+ * contact.php — Mary Hair salon
  * ---------------------------------------------------------------
  * The contact form has no backend yet (matches the pattern used
  * by booking-modal.php and auth-form.php) — it shows a placeholder
@@ -14,7 +14,7 @@ require_once __DIR__ . '/components/hero.php';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contact — Crowned Beauty Studio</title>
+<title>Contact — Mary Hair salon</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>

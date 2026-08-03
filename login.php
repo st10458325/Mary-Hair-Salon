@@ -1,6 +1,6 @@
 <?php
 /**
- * login.php — Crowned Beauty Studio
+ * login.php — Mary Hair salon
  * ---------------------------------------------------------------
  * Standalone page version of the login form. Uses the exact same
  * components/auth-form.php as the modal (components/auth-modal.php)
@@ -14,7 +14,7 @@ require_once __DIR__ . '/components/auth-form.php';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Log In — Crowned Beauty Studio</title>
+<title>Log In — Mary Hair salon</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>

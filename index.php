@@ -1,6 +1,6 @@
 <?php
 /**
- * index.php — Crowned Beauty Studio homepage
+ * index.php — Mary Hair salon homepage
  * ---------------------------------------------------------------
  * Assembly only — see components/ for the actual pieces and their
  * styling. This file just picks the content that goes into each
@@ -16,7 +16,7 @@ require_once __DIR__ . '/components/picture-slider.php';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Crowned Beauty Studio — Braids, Cuts & Wigs</title>
+<title>Mary Hair salon — Braids, Cuts & Wigs</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -24,7 +24,7 @@ require_once __DIR__ . '/components/picture-slider.php';
 <?php include __DIR__ . '/components/navigation.php'; ?>
 
 <?php render_hero([
-    'eyebrow' => 'Crowned Beauty Studio',
+    'eyebrow' => 'Mary Hair salon',
     'title'   => 'Hair That Wears The Crown',
     'text'    => 'Braids, cuts, kids styles and wig installs — booked in minutes, styled with care.',
     'buttons' => [

@@ -92,7 +92,7 @@ if (!function_exists('render_auth_form')) {
 
             <p class="auth-form__switch">
                 <?php if ($isLogin): ?>
-                    New to Crowned Beauty Studio?
+                    New to Mary Hair salon?
                     <a href="signup.php" data-auth-switch="signup">Create an account</a>
                 <?php else: ?>
                     Already have an account?

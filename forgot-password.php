@@ -1,6 +1,6 @@
 <?php
 /**
- * forgot-password.php — Crowned Beauty Studio
+ * forgot-password.php — Mary Hair salon
  * ---------------------------------------------------------------
  * Linked from components/auth-form.php's login mode. No backend
  * yet — submitting shows a placeholder confirmation, same pattern
@@ -13,7 +13,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reset Password — Crowned Beauty Studio</title>
+<title>Reset Password — Mary Hair salon</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>

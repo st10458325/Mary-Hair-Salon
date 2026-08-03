@@ -1,6 +1,6 @@
 <?php
 /**
- * bookings.php — Crowned Beauty Studio "My Bookings"
+ * bookings.php — Mary Hair salon "My Bookings"
  * ---------------------------------------------------------------
  * No database yet, so this renders mock sample bookings — swap
  * $bookings for a real query later; render_booking_card() and the
@@ -29,7 +29,7 @@ foreach ($bookings as $b) { $counts[$b['status']]++; }
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Bookings — Crowned Beauty Studio</title>
+<title>My Bookings — Mary Hair salon</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
