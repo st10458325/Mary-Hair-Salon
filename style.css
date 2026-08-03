@@ -1,0 +1,126 @@
+/**
+ * style.css — GLOBAL ONLY
+ * ---------------------------------------------------------------
+ * This file holds design tokens, the reset, base typography and
+ * a couple of shared utility classes (.glass, .glow-field).
+ *
+ * It does NOT hold component styling. Every component (navigation,
+ * footer, cards, modal...) carries its own <style> block inside its
+ * own .php file, and reads these custom properties. If you're
+ * hunting for how a specific piece of UI looks, go to that
+ * component's file — not here.
+ * ---------------------------------------------------------------
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+/* ---------- Design tokens ---------- */
+:root{
+  /* surface */
+  --bg:            #0b0908;
+  --bg-elevated:   #151110;
+
+  /* glass */
+  --glass-bg:        rgba(255,255,255,0.055);
+  --glass-bg-hover:  rgba(255,255,255,0.09);
+  --glass-border:    rgba(255,255,255,0.12);
+  --glass-blur:      18px;
+
+  /* brand accent */
+  --orange:        #e8551c;
+  --orange-light:  #ff8a4c;
+  --orange-glow:   rgba(232,85,28,0.35);
+  --orange-soft:   rgba(232,85,28,0.16);
+
+  /* text */
+  --text:          #f7f1ea;
+  --text-dim:      #cfc4ba;
+  --text-faint:    #8f8378;
+
+  /* shape */
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 10px;
+
+  /* type */
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after{ box-sizing: border-box; }
+*{ margin: 0; padding: 0; }
+html{ color-scheme: dark; }
+body{
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+a{ color: inherit; text-decoration: none; }
+button, input, select, textarea{ font-family: inherit; color: inherit; }
+button{ cursor: pointer; }
+img{ display: block; max-width: 100%; }
+ul, ol{ list-style: none; }
+
+:where(:focus-visible){
+  outline: 2px solid var(--orange-light);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Shared utilities ---------- */
+
+/* Base glass surface. Components extend this with their own rules
+   rather than redefining blur/border from scratch. */
+.glass{
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+}
+
+/* Ambient amber glow orbs — drop this behind any glass section so
+   there's something warm for the blur to refract. Purely decorative,
+   sits behind content via z-index. */
+.glow-field{
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+.glow-field span{
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  background: radial-gradient(circle, var(--orange-glow), transparent 70%);
+  opacity: 0.55;
+  animation: drift 22s ease-in-out infinite;
+}
+.glow-field span:nth-child(1){ width: 380px; height: 380px; top: -10%; left: 5%; animation-delay: 0s; }
+.glow-field span:nth-child(2){ width: 300px; height: 300px; top: 30%; right: 0%; animation-delay: -7s; }
+.glow-field span:nth-child(3){ width: 260px; height: 260px; bottom: -10%; left: 35%; animation-delay: -14s; }
+
+@keyframes drift{
+  0%, 100%{ transform: translate(0, 0) scale(1); }
+  50%{ transform: translate(30px, -25px) scale(1.08); }
+}
+
+.visually-hidden{
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
