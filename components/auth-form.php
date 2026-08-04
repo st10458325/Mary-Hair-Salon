@@ -173,10 +173,26 @@ if (!function_exists('render_auth_form')) {
   }
   .auth-form__switch a{ color: var(--orange-light); font-weight: 600; }
   .auth-form__switch a:hover{ text-decoration: underline; }
+  .auth-form__error{
+    font-size: 12.5px;
+    color: #e0475a;
+    background: rgba(224,71,90,0.12);
+    border: 1px solid rgba(224,71,90,0.3);
+    border-radius: var(--radius-sm);
+    padding: 10px 13px;
+    }
+    .auth-form__error[hidden]{ display: none; }
 </style>
 
-<script>
-(function(){
+<script type="module">
+  import { auth, db } from '/assets/js/firebase-config.js';
+  import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    updateProfile
+  } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js";
+  import { doc, setDoc } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+
   // Password show/hide — delegated so it works for every auth-form on the page
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.auth-form__toggle-pw');
@@ -187,15 +203,77 @@ if (!function_exists('render_auth_form')) {
     btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
   });
 
-  // Placeholder submit — no backend yet
-  document.addEventListener('submit', (e) => {
+  function setFormError(form, message){
+    let errorEl = form.querySelector('.auth-form__error');
+    if(!errorEl){
+      errorEl = document.createElement('p');
+      errorEl.className = 'auth-form__error';
+      form.querySelector('.auth-form__submit').insertAdjacentElement('beforebegin', errorEl);
+    }
+    errorEl.textContent = message;
+    errorEl.hidden = !message;
+  }
+
+  function setFormLoading(form, loading){
+    const btn = form.querySelector('.auth-form__submit');
+    btn.dataset.originalLabel = btn.dataset.originalLabel || btn.textContent;
+    btn.disabled = loading;
+    btn.textContent = loading ? 'Please wait…' : btn.dataset.originalLabel;
+  }
+
+  function friendlyAuthError(code){
+    const messages = {
+      'auth/email-already-in-use': "That email is already registered — try logging in instead.",
+      'auth/invalid-email': "That doesn't look like a valid email address.",
+      'auth/weak-password': 'Password should be at least 8 characters.',
+      'auth/invalid-credential': 'Incorrect email or password.',
+      'auth/user-not-found': 'No account found with that email.',
+      'auth/wrong-password': 'Incorrect email or password.',
+      'auth/too-many-requests': 'Too many attempts — please wait a moment and try again.',
+    };
+    return messages[code] || 'Something went wrong. Please try again.';
+  }
+
+  document.addEventListener('submit', async (e) => {
     const form = e.target.closest('[data-auth-form]');
     if(!form) return;
     e.preventDefault();
+
     const mode = form.dataset.authForm;
-    alert(mode === 'login'
-      ? 'Login submitted! (Connect this to your backend to authenticate.)'
-      : 'Account created! (Connect this to your backend to save it.)');
+    const data = new FormData(form);
+    setFormError(form, '');
+
+    if(mode === 'signup' && data.get('password') !== data.get('confirm_password')){
+      setFormError(form, "Passwords don't match.");
+      return;
+    }
+
+    setFormLoading(form, true);
+
+    try {
+      if(mode === 'login'){
+        await signInWithEmailAndPassword(auth, data.get('email'), data.get('password'));
+      } else {
+        const name = data.get('name');
+        const surname = data.get('surname');
+        const cred = await createUserWithEmailAndPassword(auth, data.get('email'), data.get('password'));
+
+        await updateProfile(cred.user, { displayName: `${name} ${surname}`.trim() });
+
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          name,
+          surname,
+          email: data.get('email'),
+          contact: data.get('contact'),
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      window.location.href = 'bookings.php';
+    } catch (err) {
+      console.error(err);
+      setFormError(form, friendlyAuthError(err.code));
+      setFormLoading(form, false);
+    }
   });
-})();
 </script>

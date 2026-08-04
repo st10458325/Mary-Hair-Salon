@@ -13,6 +13,10 @@
  * if that component is present on the page and its JS has loaded.
  * Its href always points to login.php, so it still works with no
  * JS or on a page that hasn't included the modal.
+ *
+ * Firebase Auth state (assets/js/firebase-config.js) drives whether
+ * the account icon shows "log in" or "logged in" state, and whether
+ * the Log Out button is visible. No JS = defaults to logged-out look.
  * ---------------------------------------------------------------
  */
 $current_page = basename($_SERVER['PHP_SELF'] ?? '');
@@ -48,9 +52,13 @@ if (!function_exists('nav_is_current')) {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.4"/><path d="M5 1.5V4M11 1.5V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
         My Bookings
       </a>
-      <a href="login.php" class="site-nav__account" data-open-auth="login" aria-label="Log in or sign up">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.2" r="2.7" stroke="currentColor" stroke-width="1.4"/><path d="M2.3 13.5c1-2.6 3.2-4 5.7-4s4.7 1.4 5.7 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <a href="login.php" class="site-nav__account" data-open-auth="login" id="navAccountLink" aria-label="Log in or sign up">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" id="navAccountIcon"><circle cx="8" cy="5.2" r="2.7" stroke="currentColor" stroke-width="1.4"/><path d="M2.3 13.5c1-2.6 3.2-4 5.7-4s4.7 1.4 5.7 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span class="site-nav__account-initial" id="navAccountInitial" hidden></span>
       </a>
+      <button type="button" class="site-nav__logout" id="navLogoutBtn" hidden aria-label="Log out">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M6 2H3.5A1.5 1.5 0 002 3.5v9A1.5 1.5 0 003.5 14H6M10.5 11l3-3-3-3M13.3 8H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
 
     <button class="site-nav__toggle" aria-label="Open navigation" aria-controls="mobileMenu" aria-expanded="false">
@@ -65,8 +73,14 @@ if (!function_exists('nav_is_current')) {
       <li><a href="about.php">About</a></li>
       <li><a href="contact.php">Contact</a></li>
       <li><a href="bookings.php">My Bookings</a></li>
+    </ul>
+    <ul id="mobileAuthLoggedOut">
       <li><a href="login.php" data-open-auth="login">Log In</a></li>
       <li><a href="signup.php" data-open-auth="signup">Sign Up</a></li>
+    </ul>
+    <ul id="mobileAuthLoggedIn" hidden>
+      <li class="site-nav__mobile-account-name" id="mobileAccountName"></li>
+      <li><button type="button" id="mobileLogoutBtn" class="site-nav__mobile-logout">Log Out</button></li>
     </ul>
   </div>
 </header>
@@ -147,10 +161,34 @@ if (!function_exists('nav_is_current')) {
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     color: var(--text-dim);
-    transition: color .2s ease, border-color .2s ease;
+    transition: color .2s ease, border-color .2s ease, background .2s ease;
     flex-shrink: 0;
   }
   .site-nav__account:hover{ color: var(--orange-light); border-color: var(--orange); }
+
+  .site-nav__account-initial{
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+  }
+  /* When logged in, the whole circle fills with the accent color and shows the initial */
+  .site-nav__account.is-authed{
+    background: linear-gradient(135deg, var(--orange-light), var(--orange));
+    border-color: transparent;
+  }
+
+  .site-nav__logout{
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--text-dim);
+    transition: color .2s ease, border-color .2s ease;
+    flex-shrink: 0;
+  }
+  .site-nav__logout:hover{ color: #e0475a; border-color: #e0475a; }
 
   .site-nav__toggle{
     display: none;
@@ -171,6 +209,12 @@ if (!function_exists('nav_is_current')) {
     border-top: 1px solid var(--glass-border);
   }
   .site-nav__mobile ul{ padding: 8px 24px 18px; }
+  .site-nav__mobile ul + ul{
+    padding-top: 0;
+    border-top: 1px solid var(--glass-border);
+    margin: 0 24px;
+    padding: 12px 0 18px;
+  }
   .site-nav__mobile a{
     display: block;
     padding: 12px 0;
@@ -179,6 +223,20 @@ if (!function_exists('nav_is_current')) {
     color: var(--text-dim);
   }
   .site-nav__mobile.is-open{ display: block; }
+  .site-nav__mobile-account-name{
+    padding: 12px 0 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--orange-light);
+  }
+  .site-nav__mobile-logout{
+    background: none;
+    border: none;
+    padding: 8px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0475a;
+  }
 
   @media (max-width: 860px){
     .site-nav__inner{ padding: 14px 20px; }
@@ -187,34 +245,86 @@ if (!function_exists('nav_is_current')) {
   }
 </style>
 
-<script>
-(function(){
+<script type="module">
+  import { auth } from '/assets/js/firebase-config.js';
+  import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js";
+
   const nav = document.querySelector('[data-nav]');
-  if(!nav) return;
-  const toggle = nav.querySelector('.site-nav__toggle');
-  const menu = nav.querySelector('.site-nav__mobile');
+  if(nav){
+    const toggle = nav.querySelector('.site-nav__toggle');
+    const menu = nav.querySelector('.site-nav__mobile');
 
-  toggle.addEventListener('click', () => {
-    const open = menu.classList.toggle('is-open');
-    toggle.setAttribute('aria-expanded', String(open));
-    menu.setAttribute('aria-hidden', String(!open));
-  });
-
-  menu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
-    menu.classList.remove('is-open');
-    toggle.setAttribute('aria-expanded', 'false');
-    menu.setAttribute('aria-hidden', 'true');
-  }));
-
-  // If components/auth-modal.php is on this page, open it instead of
-  // navigating to login.php / signup.php. If it isn't, these are
-  // just plain links and the browser navigates normally.
-  nav.querySelectorAll('[data-open-auth]').forEach(link => {
-    link.addEventListener('click', (e) => {
-      if(typeof window.openAuthModal !== 'function') return;
-      e.preventDefault();
-      window.openAuthModal(link.dataset.openAuth);
+    toggle.addEventListener('click', () => {
+      const open = menu.classList.toggle('is-open');
+      toggle.setAttribute('aria-expanded', String(open));
+      menu.setAttribute('aria-hidden', String(!open));
     });
-  });
-})();
+
+    menu.querySelectorAll('a, button').forEach(el => el.addEventListener('click', () => {
+      menu.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      menu.setAttribute('aria-hidden', 'true');
+    }));
+
+    // If components/auth-modal.php is on this page, open it instead of
+    // navigating to login.php / signup.php. If it isn't, these are
+    // just plain links and the browser navigates normally.
+    nav.querySelectorAll('[data-open-auth]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        if(link.dataset.openAuth == null) return; // logged in — let it navigate normally
+        if(typeof window.openAuthModal !== 'function') return;
+        e.preventDefault();
+        window.openAuthModal(link.dataset.openAuth);
+      });
+    });
+
+    // ---- Auth state ----
+    const accountLink = document.getElementById('navAccountLink');
+    const accountIcon = document.getElementById('navAccountIcon');
+    const accountInitial = document.getElementById('navAccountInitial');
+    const logoutBtn = document.getElementById('navLogoutBtn');
+    const mobileLoggedOut = document.getElementById('mobileAuthLoggedOut');
+    const mobileLoggedIn = document.getElementById('mobileAuthLoggedIn');
+    const mobileAccountName = document.getElementById('mobileAccountName');
+    const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
+
+    function applyAuthState(user){
+      if(user){
+        const label = (user.displayName || user.email || 'Account').trim();
+        accountLink.href = 'bookings.php';
+        accountLink.removeAttribute('data-open-auth');
+        accountLink.setAttribute('aria-label', `Account: ${label}`);
+        accountLink.classList.add('is-authed');
+        accountIcon.style.display = 'none';
+        accountInitial.textContent = label.charAt(0).toUpperCase();
+        accountInitial.hidden = false;
+        logoutBtn.hidden = false;
+
+        mobileLoggedOut.hidden = true;
+        mobileLoggedIn.hidden = false;
+        mobileAccountName.textContent = label;
+      } else {
+        accountLink.href = 'login.php';
+        accountLink.setAttribute('data-open-auth', 'login');
+        accountLink.setAttribute('aria-label', 'Log in or sign up');
+        accountLink.classList.remove('is-authed');
+        accountIcon.style.display = '';
+        accountInitial.hidden = true;
+        logoutBtn.hidden = true;
+
+        mobileLoggedOut.hidden = false;
+        mobileLoggedIn.hidden = true;
+      }
+    }
+
+    onAuthStateChanged(auth, applyAuthState);
+
+    async function doLogout(){
+      await signOut(auth);
+      window.location.href = 'index.php';
+    }
+    logoutBtn.addEventListener('click', doLogout);
+    mobileLogoutBtn.addEventListener('click', doLogout);
+  }
+
 </script>
