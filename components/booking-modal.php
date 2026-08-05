@@ -455,7 +455,10 @@
   }
 </style>
 
-<script>
+<script type="module">
+  import { auth, db } from '/assets/js/firebase-config.js';
+  import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+
 (function(){
   const modal = document.getElementById('bookingModal');
   const form = document.getElementById('bookingForm');
@@ -668,7 +671,16 @@
   });
 
   /* ---------------- Prefill from a clicked service card ---------------- */
+
   window.openBookingModal = function(service){
+    if(!auth.currentUser){
+      if(typeof window.openAuthModal === 'function'){
+        window.openAuthModal('login');
+      } else {
+        window.location.href = 'login.php';
+      }
+      return;
+    }
     service = service || {};
     const costInput = document.getElementById('bmCost');
 
@@ -715,21 +727,66 @@
     if(e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
   });
 
-  form.addEventListener('submit', function(e){
-    e.preventDefault();
-    if(!calState.selectedDate){ alert('Please select a date.'); return; }
-    if(!selectedTime){ alert('Please select a time.'); return; }
-    // Hook this up to a PHP backend endpoint to persist the booking,
-    // e.g. fetch('process_booking.php', { method: 'POST', body: new FormData(form) })
-    alert('Booking confirmed! (Connect this form to your backend to save it.)');
-    closeModal();
-    form.reset();
-    setBookingType('Outcall');
-    calState.selectedDate = null;
-    selectedTime = null;
-    renderCalendar();
-    renderTimeSlots();
-    updateSummary();
+  form.addEventListener('submit', async function(e){
+      e.preventDefault();
+      if(!calState.selectedDate){ alert('Please select a date.'); return; }
+      if(!selectedTime){ alert('Please select a time.'); return; }
+      if(!serviceSelect.value){ alert('Please select a service category.'); return; }
+      if(!styleSelect.value){ alert('Please select a style.'); return; }
+      if(!auth.currentUser){
+        alert('Please log in to book an appointment.');
+        closeModal();
+        if(typeof window.openAuthModal === 'function') window.openAuthModal('login');
+        return;
+      }
+
+      const submitBtn = form.querySelector('.bm-submit');
+      submitBtn.disabled = true;
+
+      const cost = parseFloat(document.getElementById('bmCost').value) || 0;
+      const discount = parseFloat(document.getElementById('bmDiscount').value) || 0;
+      const total = cost - (cost * discount / 100);
+
+      const bookingData = {
+        uid: auth.currentUser.uid,
+        name: form.querySelector('input[name="name"]').value,
+        surname: form.querySelector('input[name="surname"]').value,
+        contact: form.querySelector('input[name="contact"]').value,
+        category: serviceSelect.value,
+        categoryLabel: selectedText(serviceSelect),
+        service: selectedText(styleSelect),
+        type: bookingType,
+        location: bookingType === 'Outcall' ? document.getElementById('bmLocationInput').value : '',
+        date: calState.selectedDate,
+        dateFormatted: formatSelectedDate(),
+        time: selectedTime,
+        notes: document.getElementById('bmNotes').value,
+        cost,
+        discount,
+        total,
+        price: total.toFixed(2),
+        status: 'upcoming',
+        createdAt: serverTimestamp(),
+      };
+
+      try {
+        await addDoc(collection(db, 'bookings'), bookingData);
+        alert('Booking confirmed!');
+        closeModal();
+        form.reset();
+        setBookingType('Outcall');
+        calState.selectedDate = null;
+        selectedTime = null;
+        populateStyles('', '');
+        renderCalendar();
+        renderTimeSlots();
+        updateSummary();
+      } catch(err){
+        console.error(err);
+        alert('Something went wrong saving your booking. Please try again.');
+      } finally {
+        submitBtn.disabled = false;
+      }
   });
 
   /* ---------------- Init ---------------- */

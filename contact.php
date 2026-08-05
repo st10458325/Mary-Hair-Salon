@@ -160,13 +160,35 @@ require_once __DIR__ . '/components/hero.php';
   }
 </style>
 
-<script>
-document.getElementById('contactForm').addEventListener('submit', function(e){
-  e.preventDefault();
-  // Hook this up to a backend endpoint, e.g. fetch('send-message.php', {...})
-  alert('Message sent! (Connect this form to your backend to deliver it.)');
-  this.reset();
-});
+<script type="module">
+  import { db } from '/assets/js/firebase-config.js';
+  import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+
+  document.getElementById('contactForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const form = this;
+    const data = new FormData(form);
+    const submitBtn = form.querySelector('.contact-form__submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+
+    try {
+      await addDoc(collection(db, 'messages'), {
+        name: data.get('name'),
+        email: data.get('email'),
+        message: data.get('message'),
+        createdAt: serverTimestamp(),
+      });
+      alert("Message sent! We'll get back to you soon.");
+      form.reset();
+    } catch(err){
+      console.error(err);
+      alert('Something went wrong sending your message. Please try again.');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Message';
+    }
+  });
 </script>
 
 </body>
