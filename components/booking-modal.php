@@ -71,13 +71,9 @@
           <span class="bm-field__icon"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="3.2" cy="3.2" r="1.7" stroke="currentColor" stroke-width="1.1"/><circle cx="3.2" cy="11.8" r="1.7" stroke="currentColor" stroke-width="1.1"/><path d="M4.5 4.3L13 11.5M4.5 10.7L13 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></span>
           <span class="bm-field__body">
             <span class="bm-field__label">Service</span>
-            <select name="service" id="bmService">
-              <option value="" selected disabled>Select a service</option>
-              <option value="braids">Braids</option>
-              <option value="haircuts">Hair Cuts</option>
-              <option value="kids">Kids Styles</option>
-              <option value="wigs">Wig Services</option>
-            </select>
+              <select name="service" id="bmService">
+                <option value="" selected disabled>Loading services…</option>
+              </select>
           </span>
           <svg class="bm-chev" width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 4l3.5 3.5L9 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </label>
@@ -457,19 +453,15 @@
 
 <script type="module">
   import { auth, db } from '/assets/js/firebase-config.js';
-  import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+  import { addDoc, collection, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
 
 (function(){
   const modal = document.getElementById('bookingModal');
   const form = document.getElementById('bookingForm');
   let lastFocused = null;
 
-  const styleCatalog = {
-    braids: ['Box Braids', 'Knotless Braids'],
-    haircuts: ['Classic Bob Cut', 'Layered Cut & Style'],
-    kids: ['Kids Cornrows', 'Kids Twist Out'],
-    wigs: ['Lace Front Wig Install', 'Closure Wig Install'],
-  };
+  let catalogReady;
+  let servicesByCategory = {};
 
   const serviceSelect = document.getElementById('bmService');
   const styleSelect = document.getElementById('bmStyle');
@@ -482,17 +474,44 @@
     return true;
   }
 
+  function initCatalog(){
+    catalogReady = (async () => {
+      try {
+        const [catSnap, svcSnap] = await Promise.all([
+          getDocs(collection(db, 'categories')),
+          getDocs(collection(db, 'services')),
+        ]);
+
+        serviceSelect.innerHTML = '<option value="" selected disabled>Select a service</option>';
+        catSnap.forEach(d => {
+          const cat = d.data();
+          const option = document.createElement('option');
+          option.value = d.id;
+          option.textContent = cat.label || d.id;
+          serviceSelect.appendChild(option);
+        });
+
+        servicesByCategory = {};
+        svcSnap.forEach(d => {
+          const svc = d.data();
+          if(!servicesByCategory[svc.category]) servicesByCategory[svc.category] = [];
+          servicesByCategory[svc.category].push(svc.title);
+        });
+      } catch(err){
+        console.error('Failed to load service catalog', err);
+      }
+    })();
+  }
+
   function populateStyles(category, preferredStyle){
     styleSelect.innerHTML = '<option value="" selected disabled>Select a style</option>';
-
-    const styles = styleCatalog[category] || [];
+    const styles = servicesByCategory[category] || [];
     styles.forEach(style => {
       const option = document.createElement('option');
       option.value = style;
       option.textContent = style;
       styleSelect.appendChild(option);
     });
-
     styleSelect.disabled = styles.length === 0;
     if(preferredStyle) setSelectValue(styleSelect, preferredStyle);
   }
@@ -672,7 +691,7 @@
 
   /* ---------------- Prefill from a clicked service card ---------------- */
 
-  window.openBookingModal = function(service){
+  window.openBookingModal = async function(service){
     if(!auth.currentUser){
       if(typeof window.openAuthModal === 'function'){
         window.openAuthModal('login');
@@ -681,10 +700,12 @@
       }
       return;
     }
+    await catalogReady;
     service = service || {};
     const costInput = document.getElementById('bmCost');
 
     if(service.category){
+      if(catalogReady) await catalogReady;
       const categorySet = setSelectValue(serviceSelect, service.category);
       populateStyles(service.category, service.title || '');
       if(categorySet && service.title){
@@ -790,6 +811,7 @@
   });
 
   /* ---------------- Init ---------------- */
+  initCatalog();
   populateStyles('', '');
   setBookingType('Outcall');
   renderCalendar();
