@@ -56,7 +56,7 @@
         </label>
       </div>
 
-      <label class="bm-field">
+      <label class="bm-field bm-field--spaced">
         <span class="bm-field__icon"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M3 2.3c0 6.4 4.3 10.4 9.7 10.4l1.8-2.7-3.7-1.8-1.1 1.5a8 8 0 01-3.6-3.6l1.5-1.1L5.8 1 3 2.3z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg></span>
         <span class="bm-field__body">
           <span class="bm-field__label">Contact (Cell No. / WhatsApp)</span>
@@ -97,6 +97,10 @@
           </span>
         </label>
       </div>
+
+      <div class="bm-section-title"><span class="bm-num">2.1</span> Choose Your Stylist</div>
+      <div class="bm-employee-row" id="bmEmployeeRow" role="listbox" aria-label="Choose a stylist"></div>
+      <input type="hidden" name="employee" id="bmEmployeeInput" value="">
 
       <!-- 3. Booking Type -->
       <div class="bm-section-title"><span class="bm-num">3.</span> Booking Type</div>
@@ -308,6 +312,7 @@
   }
   .bm-field:focus-within{ border-color: var(--orange); }
   .bm-field--accent{ border-color: var(--orange-glow); }
+  .bm-field--spaced{ margin-top: 14px; }
   .bm-field--textarea{ align-items: flex-start; }
 
   .bm-field__icon{ color: var(--orange-light); flex-shrink: 0; margin-top: 1px; }
@@ -330,6 +335,28 @@
   .bm-field select option{ background: var(--bg-elevated); color: var(--text); }
   .bm-field--select{ padding-right: 30px; }
   .bm-chev{ position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; }
+
+  /* ---- Stylist cards ---- */
+  .bm-employee-row{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 6px; }
+  .bm-employee-card{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    color: var(--text);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, transform .15s ease;
+  }
+  .bm-employee-card:hover{ border-color: var(--orange-glow); transform: translateY(-1px); }
+  .bm-employee-card.is-selected{ border-color: var(--orange); background: var(--orange-soft); }
+  .bm-employee-card__image{ width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.16); }
+  .bm-employee-card__name{ font-size: 0.9rem; font-weight: 600; }
+  .bm-employee-card__role{ font-size: 0.74rem; color: var(--text-dim); }
 
   /* ---- Booking type cards ---- */
   .bm-type-row{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
@@ -527,6 +554,48 @@
 
   const serviceSelect = document.getElementById('bmService');
   const styleSelect = document.getElementById('bmStyle');
+  const employeeRow = document.getElementById('bmEmployeeRow');
+  const employeeInput = document.getElementById('bmEmployeeInput');
+
+  function createAvatar(initials, bg, fg = '#ffffff'){
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+      <rect width="120" height="120" rx="60" fill="${bg}"/>
+      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="46" fill="${fg}" font-weight="700">${initials}</text>
+    </svg>`;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  }
+
+  const employees = [
+    { id: 'mia', name: 'Mia Stevens', role: 'Senior Stylist', avatar: createAvatar('MS', '#d96b2b') },
+    { id: 'leo', name: 'Leo Carter', role: 'Colour Specialist', avatar: createAvatar('LC', '#7c4dff') },
+    { id: 'zara', name: 'Zara Mhlanga', role: 'Precision Cuts', avatar: createAvatar('ZM', '#1e9d7a') },
+  ];
+  let selectedEmployeeId = null;
+
+  function renderEmployees(){
+    if(!employeeRow) return;
+    employeeRow.innerHTML = employees.map(emp => `
+      <button type="button" class="bm-employee-card${selectedEmployeeId === emp.id ? ' is-selected' : ''}" data-employee-id="${emp.id}">
+        <img class="bm-employee-card__image" src="${emp.avatar}" alt="${emp.name}" />
+        <span class="bm-employee-card__name">${emp.name}</span>
+        <span class="bm-employee-card__role">${emp.role}</span>
+      </button>
+    `).join('');
+  }
+
+  function selectEmployee(value){
+    const match = employees.find(emp => emp.id === value || emp.name === value);
+    if(!match) return;
+    selectedEmployeeId = match.id;
+    if(employeeInput) employeeInput.value = match.name;
+    renderEmployees();
+  }
+
+  employeeRow?.addEventListener('click', (e) => {
+    const card = e.target.closest('[data-employee-id]');
+    if(!card) return;
+    selectEmployee(card.dataset.employeeId);
+  });
 
   function setSelectValue(select, value){
     if(value == null || value === '') return false;
@@ -824,6 +893,7 @@
       }
     }
 
+    selectEmployee(bookingRecord?.employee || employees[0]?.id || null);
     updateSummary();
     lastFocused = document.activeElement;
     modal.classList.add('is-open');
@@ -868,6 +938,7 @@
         name: form.querySelector('input[name="name"]').value,
         surname: form.querySelector('input[name="surname"]').value,
         contact: form.querySelector('input[name="contact"]').value,
+        employee: employeeInput?.value || '',
         category: serviceSelect.value,
         categoryLabel: selectedText(serviceSelect),
         service: selectedText(styleSelect),
@@ -901,6 +972,7 @@
         }
         closeModal();
         form.reset();
+        selectEmployee(employees[0]?.id || null);
         setBookingType('Outcall');
         calState.selectedDate = null;
         selectedTime = null;
@@ -919,6 +991,8 @@
   /* ---------------- Init ---------------- */
   initCatalog();
   populateStyles('', '');
+  renderEmployees();
+  selectEmployee(employees[0]?.id || null);
   setBookingType('Outcall');
   renderCalendar();
   renderTimeSlots();
