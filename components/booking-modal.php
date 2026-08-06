@@ -193,7 +193,7 @@
 
       <button type="submit" class="bm-submit">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10.5" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5h12" stroke="currentColor" stroke-width="1.3"/><path d="M5.2 10l1.8 1.8L10.8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Confirm Booking
+        <span id="bmSubmitLabel">Confirm Booking</span>
       </button>
       <p class="bm-footnote">Your information is safe and will never be shared.</p>
     </form>
@@ -453,7 +453,7 @@
 
 <script type="module">
   import { auth, db } from '/assets/js/firebase-config.js';
-  import { addDoc, collection, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+  import { addDoc, collection, serverTimestamp, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
 
 (function(){
   const modal = document.getElementById('bookingModal');
@@ -689,9 +689,10 @@
     updateSummary();
   });
 
-  /* ---------------- Prefill from a clicked service card ---------------- */
+/* ---------------- Prefill from a clicked service card, or an existing booking for reschedule ---------------- */
+  let currentEditId = null;
 
-  window.openBookingModal = async function(service){
+  window.openBookingModal = async function(service, bookingRecord = null){
     if(!auth.currentUser){
       if(typeof window.openAuthModal === 'function'){
         window.openAuthModal('login');
@@ -701,31 +702,64 @@
       return;
     }
     await catalogReady;
-    service = service || {};
-    const costInput = document.getElementById('bmCost');
 
-    if(service.category){
-      if(catalogReady) await catalogReady;
-      const categorySet = setSelectValue(serviceSelect, service.category);
-      populateStyles(service.category, service.title || '');
-      if(categorySet && service.title){
-        setSelectValue(styleSelect, service.title);
+    currentEditId = bookingRecord ? bookingRecord.id : null;
+    document.getElementById('bmSubmitLabel').textContent = bookingRecord ? 'Save Changes' : 'Confirm Booking';
+
+    if(bookingRecord){
+      // ---- Reschedule: full prefill from an existing booking doc ----
+      form.querySelector('input[name="name"]').value = bookingRecord.name || '';
+      form.querySelector('input[name="surname"]').value = bookingRecord.surname || '';
+      form.querySelector('input[name="contact"]').value = bookingRecord.contact || '';
+      document.getElementById('bmNotes').value = bookingRecord.notes || '';
+      document.getElementById('bmCost').value = bookingRecord.cost ?? '';
+      document.getElementById('bmDiscount').value = bookingRecord.discount ?? 0;
+      document.getElementById('bmLocationInput').value = bookingRecord.location || '';
+
+      setSelectValue(serviceSelect, bookingRecord.category);
+      populateStyles(bookingRecord.category, bookingRecord.service);
+
+      setBookingType(bookingRecord.type || 'Outcall');
+
+      if(bookingRecord.date){
+        const [y, m] = bookingRecord.date.split('-').map(Number);
+        calState.viewYear = y;
+        calState.viewMonth = m - 1;
+        calState.selectedDate = bookingRecord.date;
       }
-      document.getElementById('bookingModalService').textContent = service.title
-        ? `Booking: ${service.categoryLabel || selectedText(serviceSelect)} / ${service.title}`
-        : `Booking: ${service.categoryLabel || selectedText(serviceSelect)}`;
+      selectedTime = bookingRecord.time || null;
+      renderCalendar();
+      renderTimeSlots();
+
+      document.getElementById('bookingModalService').textContent =
+        `Rescheduling: ${selectedText(serviceSelect)} / ${bookingRecord.service || ''}`;
     } else {
-      document.getElementById('bookingModalService').textContent = 'Fill in your details below to secure your booking.';
-    }
+      // ---- New booking from a service card (unchanged behaviour) ----
+      service = service || {};
+      const costInput = document.getElementById('bmCost');
 
-    if(service.price){
-      const numeric = (service.price.match(/\d+/) || [''])[0];
-      if(numeric) costInput.value = numeric;
-    }
+      if(service.category){
+        const categorySet = setSelectValue(serviceSelect, service.category);
+        populateStyles(service.category, service.title || '');
+        if(categorySet && service.title){
+          setSelectValue(styleSelect, service.title);
+        }
+        document.getElementById('bookingModalService').textContent = service.title
+          ? `Booking: ${service.categoryLabel || selectedText(serviceSelect)} / ${service.title}`
+          : `Booking: ${service.categoryLabel || selectedText(serviceSelect)}`;
+      } else {
+        document.getElementById('bookingModalService').textContent = 'Fill in your details below to secure your booking.';
+      }
 
-    if(!service.category){
-      populateStyles('', '');
-      serviceSelect.value = '';
+      if(service.price){
+        const numeric = (service.price.match(/\d+/) || [''])[0];
+        if(numeric) costInput.value = numeric;
+      }
+
+      if(!service.category){
+        populateStyles('', '');
+        serviceSelect.value = '';
+      }
     }
 
     updateSummary();
@@ -769,7 +803,6 @@
       const total = cost - (cost * discount / 100);
 
       const bookingData = {
-        uid: auth.currentUser.uid,
         name: form.querySelector('input[name="name"]').value,
         surname: form.querySelector('input[name="surname"]').value,
         contact: form.querySelector('input[name="contact"]').value,
@@ -787,17 +820,29 @@
         total,
         price: total.toFixed(2),
         status: 'pending',
-        createdAt: serverTimestamp(),
       };
 
       try {
-        await addDoc(collection(db, 'bookings'), bookingData);
-        alert('Booking submitted!');
+        if(currentEditId){
+          await updateDoc(doc(db, 'bookings', currentEditId), {
+            ...bookingData,
+            updatedAt: serverTimestamp(),
+          });
+          alert('Booking updated! Your new date/time is pending confirmation.');
+        } else {
+          await addDoc(collection(db, 'bookings'), {
+            ...bookingData,
+            uid: auth.currentUser.uid,
+            createdAt: serverTimestamp(),
+          });
+          alert('Booking confirmed!');
+        }
         closeModal();
         form.reset();
         setBookingType('Outcall');
         calState.selectedDate = null;
         selectedTime = null;
+        currentEditId = null;
         populateStyles('', '');
         renderCalendar();
         renderTimeSlots();
@@ -809,7 +854,6 @@
         submitBtn.disabled = false;
       }
   });
-
   /* ---------------- Init ---------------- */
   initCatalog();
   populateStyles('', '');

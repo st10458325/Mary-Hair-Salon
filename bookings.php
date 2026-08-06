@@ -127,6 +127,7 @@ require_once __DIR__ . '/components/booking-card.php';
   const loggedOut = document.getElementById('bookingsLoggedOut');
   const filterBar = document.getElementById('bookingsFilter');
   const counts = { all: 0, pending: 0, upcoming: 0, completed: 0, cancelled: 0 };
+  let currentBookings = [];
 
   function escapeHtml(str){
     const div = document.createElement('div');
@@ -188,7 +189,8 @@ require_once __DIR__ . '/components/booking-card.php';
       const statusOrder = { pending: 0, upcoming: 1, completed: 2, cancelled: 3 };
       const bookings = [];
       snap.forEach(docSnap => bookings.push({ id: docSnap.id, ...docSnap.data() }));
-      bookings.sort((a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4));
+      bookings.sort((a, b) => (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3));
+      currentBookings = bookings;
 
       counts.all = bookings.length;
       counts.pending = bookings.filter(b => b.status === 'pending').length;
@@ -236,7 +238,15 @@ require_once __DIR__ . '/components/booking-card.php';
 
   grid.addEventListener('click', async (e) => {
     if(e.target.closest('[data-reschedule]')){
-      alert('Rescheduling is coming soon — please contact us directly to reschedule for now.');
+      const id = e.target.closest('[data-reschedule]').dataset.reschedule;
+      const booking = currentBookings.find(b => b.id === id);
+      if(!booking){
+        alert('Could not find that booking. Please refresh and try again.');
+        return;
+      }
+      if(typeof window.openBookingModal === 'function'){
+        window.openBookingModal(null, booking);
+      }
       return;
     }
     const cancelBtn = e.target.closest('[data-cancel]');
