@@ -786,13 +786,13 @@
         discount,
         total,
         price: total.toFixed(2),
-        status: 'upcoming',
+        status: 'pending',
         createdAt: serverTimestamp(),
       };
 
       try {
         await addDoc(collection(db, 'bookings'), bookingData);
-        alert('Booking confirmed!');
+        alert('Booking submitted!');
         closeModal();
         form.reset();
         setBookingType('Outcall');

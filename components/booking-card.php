@@ -102,6 +102,7 @@ if (!function_exists('render_booking_card')) {
   }
   .booking-card--completed .booking-card__status{ background: rgba(255,255,255,0.08); color: var(--text-dim); }
   .booking-card--cancelled .booking-card__status{ background: rgba(224,71,90,0.15); color: #e0475a; }
+  .booking-card--pending .booking-card__status{ background: rgba(255,184,92,0.16); color: #ffb85c; }
 
   .booking-card__meta{
     display: flex;

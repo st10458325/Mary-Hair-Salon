@@ -39,6 +39,7 @@ require_once __DIR__ . '/components/booking-card.php';
 
     <div class="bookings-filter" id="bookingsFilter">
       <button type="button" class="bookings-filter__pill is-active" data-status-filter="all">All <span id="countAll">0</span></button>
+      <button type="button" class="bookings-filter__pill" data-status-filter="pending">Pending <span id="countPending">0</span></button>
       <button type="button" class="bookings-filter__pill" data-status-filter="upcoming">Upcoming <span id="countUpcoming">0</span></button>
       <button type="button" class="bookings-filter__pill" data-status-filter="completed">Completed <span id="countCompleted">0</span></button>
       <button type="button" class="bookings-filter__pill" data-status-filter="cancelled">Cancelled <span id="countCancelled">0</span></button>
@@ -49,6 +50,7 @@ require_once __DIR__ . '/components/booking-card.php';
     <p class="bookings-status" id="bookingsLoggedOut" hidden>Please <a href="login.php">log in</a> to see your bookings.</p>
 
     <div class="bookings-grid" id="bookingsGrid"></div>
+
 
   </div>
 </main>
@@ -124,7 +126,7 @@ require_once __DIR__ . '/components/booking-card.php';
   const empty = document.getElementById('bookingsEmpty');
   const loggedOut = document.getElementById('bookingsLoggedOut');
   const filterBar = document.getElementById('bookingsFilter');
-  const counts = { all: 0, upcoming: 0, completed: 0, cancelled: 0 };
+  const counts = { all: 0, pending: 0, upcoming: 0, completed: 0, cancelled: 0 };
 
   function escapeHtml(str){
     const div = document.createElement('div');
@@ -133,13 +135,13 @@ require_once __DIR__ . '/components/booking-card.php';
   }
 
   function statusLabel(status){
-    return { upcoming: 'Upcoming', completed: 'Completed', cancelled: 'Cancelled' }[status] || status;
+    return { pending: 'Pending', upcoming: 'Upcoming', completed: 'Completed', cancelled: 'Cancelled' }[status] || status;
   }
 
   function bookingCardHtml(b){
     const status = b.status || 'upcoming';
     const location = (b.type === 'Outcall' && b.location) ? ` — ${escapeHtml(b.location)}` : '';
-    const actions = status === 'upcoming' ? `
+    const actions = (status === 'upcoming' || status === 'pending') ? `
       <div class="booking-card__actions">
         <button type="button" class="booking-card__link" data-reschedule="${b.id}">Reschedule</button>
         <button type="button" class="booking-card__link booking-card__link--danger" data-cancel="${b.id}">Cancel</button>
@@ -171,6 +173,7 @@ require_once __DIR__ . '/components/booking-card.php';
     document.getElementById('countUpcoming').textContent = counts.upcoming;
     document.getElementById('countCompleted').textContent = counts.completed;
     document.getElementById('countCancelled').textContent = counts.cancelled;
+    document.getElementById('countPending').textContent = counts.pending;
   }
 
   async function loadBookings(uid){
@@ -182,12 +185,13 @@ require_once __DIR__ . '/components/booking-card.php';
       const q = query(collection(db, 'bookings'), where('uid', '==', uid), orderBy('date', 'desc'));
       const snap = await getDocs(q);
 
-      const statusOrder = { upcoming: 0, completed: 1, cancelled: 2 };
+      const statusOrder = { pending: 0, upcoming: 1, completed: 2, cancelled: 3 };
       const bookings = [];
       snap.forEach(docSnap => bookings.push({ id: docSnap.id, ...docSnap.data() }));
-      bookings.sort((a, b) => (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3));
+      bookings.sort((a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4));
 
       counts.all = bookings.length;
+      counts.pending = bookings.filter(b => b.status === 'pending').length;
       counts.upcoming = bookings.filter(b => b.status === 'upcoming').length;
       counts.completed = bookings.filter(b => b.status === 'completed').length;
       counts.cancelled = bookings.filter(b => b.status === 'cancelled').length;
