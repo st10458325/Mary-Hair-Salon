@@ -79,6 +79,9 @@ if (!function_exists('render_service_card')) {
     border-radius: var(--radius-lg);
     background: var(--glass-bg);
     overflow: hidden;
+    min-height: 100%;
+    padding: 14px;
+    gap: 12px;
     transition: background .25s ease, border-color .25s ease, transform .25s ease;
   }
   .service-card:hover{
@@ -88,8 +91,10 @@ if (!function_exists('render_service_card')) {
   }
 
   .service-card__thumb{
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 4 / 3;
     overflow: hidden;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
   }
   .service-card__thumb img{
     width: 100%; height: 100%;
@@ -99,11 +104,12 @@ if (!function_exists('render_service_card')) {
   .service-card:hover .service-card__thumb img{ transform: scale(1.06); }
 
   .service-card__body{
-    padding: 20px;
+    padding: 2px 4px 2px;
     display: flex;
     flex-direction: column;
     gap: 10px;
     flex: 1;
+    justify-content: space-between;
   }
   .service-card__title{
     font-family: var(--font-display);
@@ -138,6 +144,7 @@ if (!function_exists('render_service_card')) {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
   }
   .service-card__price{
     font-size: 13.5px;

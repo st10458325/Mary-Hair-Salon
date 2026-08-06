@@ -94,6 +94,7 @@ require_once __DIR__ . '/components/service-card.php';
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 20px;
     margin-top: 28px;
+    align-items: stretch;
   }
 
   .service-sublist{ margin-top: 28px; }
@@ -122,8 +123,9 @@ require_once __DIR__ . '/components/service-card.php';
   }
   .sublist-grid{
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 20px;
+    align-items: stretch;
   }
 
   .services-empty, .services-status{
@@ -151,7 +153,10 @@ require_once __DIR__ . '/components/service-card.php';
   #servicesRoot[data-view="search"] .service-sublist{ display: block; }
   #servicesRoot[data-view="search"] .sublist-header{ display: none; }
   #servicesRoot[data-view="search"] .sublist-grid{
-    display: contents;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    align-items: stretch;
   }
   #servicesRoot[data-view="search"] .service-card{ display: none; }
   #servicesRoot[data-view="search"] .service-card.is-match{ display: flex; }

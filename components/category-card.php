@@ -86,6 +86,9 @@ if (!function_exists('render_category_card')) {
     border-radius: var(--radius-lg);
     background: var(--glass-bg);
     overflow: hidden;
+    min-height: 100%;
+    padding: 14px;
+    gap: 12px;
     transition: background .25s ease, border-color .25s ease, transform .25s ease, box-shadow .25s ease;
   }
   .category-card:hover, .category-card:focus-visible{
@@ -99,6 +102,9 @@ if (!function_exists('render_category_card')) {
     position: relative;
     aspect-ratio: 4 / 3;
     background: var(--bg-elevated);
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    overflow: hidden;
   }
   .category-card__thumb img{
     width: 100%; height: 100%;
@@ -115,7 +121,7 @@ if (!function_exists('render_category_card')) {
   .category-card__icon{
     position: absolute;
     right: 12px;
-    bottom: -16px;
+    bottom: 12px;
     width: 40px; height: 40px;
     display: flex;
     align-items: center;
@@ -125,14 +131,16 @@ if (!function_exists('render_category_card')) {
     color: #fff;
     border: 3px solid var(--bg-elevated);
     box-shadow: 0 8px 18px -6px rgba(0,0,0,0.6);
-    z-index: 2;
+    z-index: 5;
+    pointer-events: none;
   }
 
   .category-card__info{
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 26px 20px 16px;
+    padding: 2px 4px 2px;
+    flex: 1;
   }
   .category-card__label{
     font-family: var(--font-display);
