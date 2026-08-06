@@ -107,12 +107,15 @@ if (!function_exists('render_auth_form')) {
 <style>
   .auth-form{ display: flex; flex-direction: column; gap: 16px; width: 100%; }
 
-  .auth-form__row{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .auth-form__row{ display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
   @media (max-width: 480px){ .auth-form__row{ grid-template-columns: 1fr; } }
 
-  .auth-form__field{ display: flex; flex-direction: column; gap: 6px; }
+  .auth-form__field{ display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .auth-form__field span{ font-size: 12px; color: var(--text-dim); font-weight: 600; }
   .auth-form__field input{
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-sm);

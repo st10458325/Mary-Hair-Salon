@@ -51,9 +51,25 @@ require_once __DIR__ . '/components/booking-card.php';
 
     <div class="bookings-grid" id="bookingsGrid"></div>
 
-
   </div>
 </main>
+
+<div class="bookings-confirm" id="bookingCancelConfirm" hidden>
+  <div class="bookings-confirm__backdrop" data-cancel-confirm-close></div>
+  <div class="bookings-confirm__panel glass" role="dialog" aria-modal="true" aria-labelledby="bookingCancelTitle">
+    <h3 id="bookingCancelTitle">Cancel this booking?</h3>
+    <p>This will mark the appointment as cancelled.</p>
+    <div class="bookings-confirm__actions">
+      <button type="button" class="bookings-confirm__btn bookings-confirm__btn--ghost" data-cancel-confirm-dismiss>No, keep it</button>
+      <button type="button" class="bookings-confirm__btn bookings-confirm__btn--danger" data-cancel-confirm-accept>Cancel booking</button>
+    </div>
+  </div>
+</div>
+
+<div class="bookings-toast" id="bookingsToast" role="status" aria-live="polite" aria-atomic="true" hidden>
+  <span class="bookings-toast__icon" aria-hidden="true"></span>
+  <span class="bookings-toast__text"></span>
+</div>
 
 <?php include __DIR__ . '/components/booking-modal.php'; ?>
 <?php include __DIR__ . '/components/auth-modal.php'; ?>
@@ -111,6 +127,89 @@ require_once __DIR__ . '/components/booking-card.php';
   }
   .bookings-status a{ color: var(--orange-light); font-weight: 600; }
 
+  .bookings-confirm{
+    position: fixed;
+    inset: 0;
+    z-index: 550;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+  }
+  .bookings-confirm[hidden]{ display: none; }
+  .bookings-confirm__backdrop{
+    position: absolute;
+    inset: 0;
+    background: rgba(6, 4, 3, 0.72);
+    backdrop-filter: blur(4px);
+  }
+  .bookings-confirm__panel{
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-elevated);
+    border: 1px solid var(--glass-border);
+    text-align: center;
+  }
+  .bookings-confirm__panel h3{
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .bookings-confirm__panel p{
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .bookings-confirm__actions{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .bookings-confirm__btn{
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-weight: 600;
+    background: var(--glass-bg);
+    color: var(--text);
+  }
+  .bookings-confirm__btn--danger{
+    background: rgba(224,71,90,0.14);
+    border-color: rgba(224,71,90,0.32);
+    color: #ffd7de;
+  }
+  .bookings-toast{
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(360px, calc(100vw - 24px));
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: rgba(10,8,7,0.94);
+    color: var(--text-dim);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.32);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+  }
+  .bookings-toast[hidden]{ display: none; }
+  .bookings-toast--success{ border-color: rgba(62,207,110,0.28); background: rgba(62,207,110,0.16); color: #e8fdf0; }
+  .bookings-toast--error{ border-color: rgba(224,71,90,0.28); background: rgba(224,71,90,0.16); color: #ffe7eb; }
+  .bookings-toast__icon{ width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,0.12); font-weight: 700; flex-shrink: 0; }
+  .bookings-toast--success .bookings-toast__icon{ background: rgba(62,207,110,0.2); color: #7ae59a; }
+  .bookings-toast--error .bookings-toast__icon{ background: rgba(224,71,90,0.2); color: #ff8fa1; }
+  .bookings-toast__icon::before{ content: '✓'; }
+  .bookings-toast--error .bookings-toast__icon::before{ content: '×'; }
+  .bookings-toast__text{ font-size: 0.9rem; line-height: 1.4; }
+
   @media (max-width: 640px){
     .bookings-page{ padding: 10px 20px 70px; }
   }
@@ -126,8 +225,37 @@ require_once __DIR__ . '/components/booking-card.php';
   const empty = document.getElementById('bookingsEmpty');
   const loggedOut = document.getElementById('bookingsLoggedOut');
   const filterBar = document.getElementById('bookingsFilter');
+  const confirmDialog = document.getElementById('bookingCancelConfirm');
+  const toast = document.getElementById('bookingsToast');
+  const toastText = toast ? toast.querySelector('.bookings-toast__text') : null;
   const counts = { all: 0, pending: 0, upcoming: 0, completed: 0, cancelled: 0 };
   let currentBookings = [];
+  let pendingCancelId = null;
+  let toastTimer = null;
+
+  function showBookingsToast(message, type = 'success'){
+    if(!toast || !toastText) return;
+    clearTimeout(toastTimer);
+    toast.className = `bookings-toast bookings-toast--${type}`;
+    toastText.textContent = message;
+    toast.hidden = false;
+    toastTimer = window.setTimeout(() => {
+      toast.hidden = true;
+      toast.className = 'bookings-toast';
+    }, 4200);
+  }
+
+  function openCancelConfirm(id){
+    pendingCancelId = id;
+    confirmDialog.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeCancelConfirm(){
+    pendingCancelId = null;
+    confirmDialog.hidden = true;
+    document.body.style.overflow = '';
+  }
 
   function escapeHtml(str){
     const div = document.createElement('div');
@@ -236,12 +364,12 @@ require_once __DIR__ . '/components/booking-card.php';
     });
   });
 
-  grid.addEventListener('click', async (e) => {
+  grid.addEventListener('click', (e) => {
     if(e.target.closest('[data-reschedule]')){
       const id = e.target.closest('[data-reschedule]').dataset.reschedule;
       const booking = currentBookings.find(b => b.id === id);
       if(!booking){
-        alert('Could not find that booking. Please refresh and try again.');
+        showBookingsToast('Could not find that booking. Please refresh and try again.', 'error');
         return;
       }
       if(typeof window.openBookingModal === 'function'){
@@ -251,13 +379,30 @@ require_once __DIR__ . '/components/booking-card.php';
     }
     const cancelBtn = e.target.closest('[data-cancel]');
     if(!cancelBtn) return;
-    if(!confirm('Cancel this booking?')) return;
-    try {
-      await updateDoc(doc(db, 'bookings', cancelBtn.dataset.cancel), { status: 'cancelled' });
-      if(auth.currentUser) loadBookings(auth.currentUser.uid);
-    } catch(err){
-      console.error(err);
-      alert('Could not cancel this booking. Please try again.');
+    openCancelConfirm(cancelBtn.dataset.cancel);
+  });
+
+  confirmDialog?.addEventListener('click', async (e) => {
+    if(e.target.closest('[data-cancel-confirm-dismiss]')){
+      closeCancelConfirm();
+      return;
+    }
+    if(e.target.closest('[data-cancel-confirm-close]')){
+      closeCancelConfirm();
+      return;
+    }
+    if(e.target.closest('[data-cancel-confirm-accept]')){
+      if(!pendingCancelId) return;
+      try {
+        await updateDoc(doc(db, 'bookings', pendingCancelId), { status: 'cancelled' });
+        showBookingsToast('Booking cancelled.', 'success');
+        if(auth.currentUser) loadBookings(auth.currentUser.uid);
+      } catch(err){
+        console.error(err);
+        showBookingsToast('Could not cancel this booking. Please try again.', 'error');
+      } finally {
+        closeCancelConfirm();
+      }
     }
   });
 </script>

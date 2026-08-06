@@ -200,6 +200,11 @@
   </div>
 </div>
 
+<div class="booking-toast" id="bookingToast" role="status" aria-live="polite" aria-atomic="true" hidden>
+  <span class="booking-toast__icon" aria-hidden="true"></span>
+  <span class="booking-toast__text"></span>
+</div>
+
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Alex+Brush&display=swap');
 
@@ -443,6 +448,48 @@
   .bm-submit:hover{ opacity: .92; }
   .bm-footnote{ text-align: center; color: var(--text-faint); font-size: 0.76rem; margin-top: 12px; }
 
+  .booking-toast{
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(360px, calc(100vw - 32px));
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: rgba(10, 8, 7, 0.92);
+    color: var(--text-dim);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.32);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    animation: booking-toast-in .2s ease;
+  }
+  .booking-toast[hidden]{ display: none; }
+  .booking-toast--success{ border-color: rgba(62,207,110,0.32); background: rgba(62,207,110,0.16); color: #e8fdf0; }
+  .booking-toast--warning{ border-color: rgba(232,85,28,0.32); background: rgba(232,85,28,0.16); color: #ffe7dc; }
+  .booking-toast--error{ border-color: rgba(224,71,90,0.32); background: rgba(224,71,90,0.16); color: #ffe7eb; }
+  .booking-toast__icon{
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.12);
+  }
+  .booking-toast--success .booking-toast__icon{ background: rgba(62,207,110,0.2); color: #7ae59a; }
+  .booking-toast--warning .booking-toast__icon{ background: rgba(232,85,28,0.2); color: var(--orange-light); }
+  .booking-toast--error .booking-toast__icon{ background: rgba(224,71,90,0.2); color: #ff8fa1; }
+  .booking-toast__icon::before{ content: '✓'; }
+  .booking-toast--warning .booking-toast__icon::before{ content: '!'; }
+  .booking-toast--error .booking-toast__icon::before{ content: '×'; }
+  .booking-toast__text{ font-size: 0.9rem; line-height: 1.4; }
+  @keyframes booking-toast-in{ from{ opacity: 0; transform: translateY(-6px); } to{ opacity: 1; transform: translateY(0); } }
+
   @media (max-width: 720px){
     .booking-modal__panel{ padding: 26px 20px 22px; }
     .bm-row--2, .bm-row--3, .bm-type-row, .bm-dt-row, .bm-summary{ grid-template-columns: 1fr; }
@@ -458,7 +505,22 @@
 (function(){
   const modal = document.getElementById('bookingModal');
   const form = document.getElementById('bookingForm');
+  const toast = document.getElementById('bookingToast');
+  const toastText = toast ? toast.querySelector('.booking-toast__text') : null;
   let lastFocused = null;
+  let toastTimer = null;
+
+  function showNotice(message, type = 'warning'){
+    if(!toast || !toastText) return;
+    clearTimeout(toastTimer);
+    toast.className = `booking-toast booking-toast--${type}`;
+    toastText.textContent = message;
+    toast.hidden = false;
+    toastTimer = window.setTimeout(() => {
+      toast.hidden = true;
+      toast.className = 'booking-toast';
+    }, 4200);
+  }
 
   let catalogReady;
   let servicesByCategory = {};
@@ -784,12 +846,12 @@
 
   form.addEventListener('submit', async function(e){
       e.preventDefault();
-      if(!calState.selectedDate){ alert('Please select a date.'); return; }
-      if(!selectedTime){ alert('Please select a time.'); return; }
-      if(!serviceSelect.value){ alert('Please select a service category.'); return; }
-      if(!styleSelect.value){ alert('Please select a style.'); return; }
+      if(!calState.selectedDate){ showNotice('Please select a date.', 'warning'); return; }
+      if(!selectedTime){ showNotice('Please select a time.', 'warning'); return; }
+      if(!serviceSelect.value){ showNotice('Please select a service category.', 'warning'); return; }
+      if(!styleSelect.value){ showNotice('Please select a style.', 'warning'); return; }
       if(!auth.currentUser){
-        alert('Please log in to book an appointment.');
+        showNotice('Please log in to book an appointment.', 'warning');
         closeModal();
         if(typeof window.openAuthModal === 'function') window.openAuthModal('login');
         return;
@@ -828,14 +890,14 @@
             ...bookingData,
             updatedAt: serverTimestamp(),
           });
-          alert('Booking updated! Your new date/time is pending confirmation.');
+          showNotice('Booking updated! Your new date/time is pending confirmation.', 'success');
         } else {
           await addDoc(collection(db, 'bookings'), {
             ...bookingData,
             uid: auth.currentUser.uid,
             createdAt: serverTimestamp(),
           });
-          alert('Booking confirmed!');
+          showNotice('Booking confirmed!', 'success');
         }
         closeModal();
         form.reset();
@@ -849,7 +911,7 @@
         updateSummary();
       } catch(err){
         console.error(err);
-        alert('Something went wrong saving your booking. Please try again.');
+        showNotice('Something went wrong saving your booking. Please try again.', 'error');
       } finally {
         submitBtn.disabled = false;
       }

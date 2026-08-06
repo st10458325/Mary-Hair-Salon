@@ -64,7 +64,7 @@ require_once __DIR__ . '/auth-form.php';
     position: relative;
     z-index: 1;
     width: 100%;
-    max-width: 440px;
+    max-width: 500px;
     max-height: 88vh;
     overflow-y: auto;
     border-radius: var(--radius-lg);
@@ -129,6 +129,11 @@ require_once __DIR__ . '/auth-form.php';
   .auth-modal__pane{ display: none; }
   .auth-modal[data-mode="login"] .auth-modal__pane[data-auth-pane="login"]{ display: block; }
   .auth-modal[data-mode="signup"] .auth-modal__pane[data-auth-pane="signup"]{ display: block; }
+
+  @media (max-width: 560px){
+    .auth-modal{ padding: 14px; }
+    .auth-modal__panel{ padding: 26px 20px 22px; }
+  }
 </style>
 
 <script>
