@@ -1,0 +1,44 @@
+# Owned by Person 3 (DevOps + QA/Docs). Runs automatically on every push
+# and pull request targeting main or dev — this is what "the CI pipeline
+# everyone's PRs run against" actually refers to.
+trigger:
+  branches:
+    include:
+      - main
+      - dev
+
+pr:
+  branches:
+    include:
+      - dev
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: Gradle@3
+    displayName: 'Run unit tests (BookingValidationTest, etc.)'
+    inputs:
+      gradleWrapperFile: 'gradlew'
+      tasks: 'testDebugUnitTest'
+      publishJUnitResults: true
+      testResultsFiles: '**/TEST-*.xml'
+
+  - task: Gradle@3
+    displayName: 'Assemble debug APK'
+    inputs:
+      gradleWrapperFile: 'gradlew'
+      tasks: 'assembleDebug'
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish APK as a build artifact'
+    inputs:
+      PathtoPublish: 'app/build/outputs/apk/debug'
+      ArtifactName: 'app-debug'
+
+# NOTE: instrumented tests (UserDaoTest) need a real emulator or device
+# and are NOT run here — ubuntu-latest hosted agents don't include one.
+# Run those locally with `./gradlew connectedAndroidTest`, or add a
+# separate pipeline stage using a macOS pool with android emulator setup
+# if your team wants that running in CI too (optional stretch goal).
