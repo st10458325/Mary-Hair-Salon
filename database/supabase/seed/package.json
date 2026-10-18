@@ -1,0 +1,14 @@
+{
+  "name": "mary-hair-salon-seed",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fills the Supabase database with 10+ simulated rows per table",
+  "main": "seed.js",
+  "scripts": {
+    "seed": "node seed.js",
+    "seed:dry-run": "node seed.js --dry-run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4"
+  }
+}
