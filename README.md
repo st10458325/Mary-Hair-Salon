@@ -31,7 +31,7 @@ Kotlin + Jetpack Compose. The app uses the same Supabase database as the website
 * **Staff:** promote a customer to stylist (with a job title) or revert them.
 * **Catalogue:** add, edit or delete categories and services (price, discount %, tags, hide from customers).
 
-The database does all the important checks itself (see `supabase/migrations/003_api.sql`):
+The database does all the important checks itself (see `database/supabase/migrations/003_api.sql`):
 * It reads the price from the services table.
 * It validates the time slot.
 * It refuses double bookings.
@@ -41,7 +41,7 @@ The app checks the same rules first so mistakes show up instantly, and shows the
 
 ## Setup
 
-1. Set up Supabase as described in `supabase/README.md`: run the SQL files, then seed the data.
+1. Set up Supabase as described in `database/supabase/README.md`: run the SQL files, then seed the data.
 2. In Android Studio, open the `android` folder.
 3. Add these lines to `android/local.properties` (see `local.properties.example`):
    ```
@@ -91,13 +91,41 @@ app/src/main/java/za/co/maryhairsalon/
 
 Each screen has a ViewModel that exposes `StateFlow`s and talks only to repositories (MVVM, spec NFR-06). Messages for the user come back as friendly text and are shown in a Snackbar.
 
+## Google sign-in (single sign-on) troubleshooting
+
+| What you see | Cause and fix |
+|---|---|
+| "Google sign-in isn't set up yet" | `GOOGLE_WEB_CLIENT_ID` is missing or empty in `local.properties`. Add it, then sync Gradle and rebuild (the value is baked in at build time). |
+| "Google sign-in failed. Please try again." | The Android OAuth client's package name or SHA-1 doesn't match this build. Use `za.co.maryhairsalon` and the SHA-1 of the keystore you are running with (each developer machine, and the release keystore, has its own). Also check you used the **Web** client ID, not the Android one. |
+| "No Google account found on this phone" | Add a Google account in the phone's Settings → Accounts. |
+| Account picker works but you are not logged in | In Supabase → Authentication → Providers → Google, tick **Skip nonce check**, and check the Web client ID and secret match Google Cloud Console. |
+
+After a successful sign-in the new user appears in Supabase → Authentication → Users and a profile row is created automatically.
+
 ## Tests
+
+The JVM unit tests need no keys, no network and no emulator:
 
 ```
 ./gradlew testDebugUnitTest
 ```
 
-These run the JVM unit tests for booking validation, pricing, status rules, database↔app mapping, error messages, slugs and the tag converter. They need no keys or network, so a CI pipeline (GitHub Actions / Azure Pipelines) can run them.
+Use **JDK 17 or 21**. The JDK 25 bundled with the newest Android Studio is too new for Gradle 8.14 / Kotlin 2.1. On Windows, for example:
+
+```
+$env:JAVA_HOME = "C:\Users\<you>\.jdks\jbr-21.0.11"
+.\gradlew.bat testDebugUnitTest
+```
+
+There are **37 tests**, all passing:
+
+| File | Tests | Covers |
+|---|---|---|
+| `BookingRulesTest` | 10 | booking validation, time slots, contact numbers, status transitions, pricing |
+| `MappersTest` | 10 | database-to-app mapping, role/status fallbacks, Room round trip, tag converter |
+| `ValidationAndModelsTest` | 17 | form validation edge cases, database and auth error messages, slugs, model helpers |
+
+The HTML report is written to `app/build/reports/tests/testDebugUnitTest/index.html`. A CI pipeline (Azure Pipelines or GitHub Actions) can run the same command. Instrumented tests (Room on a device) and the login/sign-up screens need an emulator or phone and are not part of this command.
 
 ## Logging
 
