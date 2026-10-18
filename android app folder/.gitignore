@@ -1,0 +1,15 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/app/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+# Supabase keys live in local.properties (already ignored above)
+# Release signing
+*.jks
+*.keystore
+keystore.properties

@@ -1,0 +1,8 @@
+# Copy these two lines into android/local.properties (Android Studio creates that file;
+# it is git-ignored). Values: Supabase dashboard -> Project Settings -> API.
+# Use the anon / public key ONLY. Never put the service_role key in the app.
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=paste-the-anon-public-key-here
+# Google sign-in: the WEB client id from Google Cloud Console -> Credentials
+# (the same one you pasted into Supabase -> Authentication -> Providers -> Google).
+GOOGLE_WEB_CLIENT_ID=1234567890-abcdefg.apps.googleusercontent.com
