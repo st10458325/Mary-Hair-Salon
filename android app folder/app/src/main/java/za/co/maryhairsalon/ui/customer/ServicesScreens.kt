@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,11 +41,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.SubcomposeAsyncImage
 import za.co.maryhairsalon.data.model.Service
 import za.co.maryhairsalon.data.repository.CategoryWithCount
 import za.co.maryhairsalon.ui.CollectMessages
@@ -128,12 +131,7 @@ fun ServicesTab(
 @Composable
 private fun CategoryTile(item: CategoryWithCount, modifier: Modifier, onClick: () -> Unit) {
     GlassCard(modifier.height(150.dp), onClick = onClick) {
-        Box(
-            Modifier.size(40.dp).clip(CircleShape).background(Brand.OrangeSoft),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(item.category.label.take(1), color = Brand.OrangeLight, fontWeight = FontWeight.Bold)
-        }
+        CategoryImage(item.category.image, item.category.label, Modifier.size(48.dp))
         Spacer(Modifier.weight(1f))
         Text(item.category.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (item.category.description.isNotBlank()) {
@@ -144,6 +142,30 @@ private fun CategoryTile(item: CategoryWithCount, modifier: Modifier, onClick: (
             style = MaterialTheme.typography.labelMedium,
             color = Brand.OrangeLight,
         )
+    }
+}
+
+/** Category photo from its image URL; shows a person avatar when there is no URL or it fails to load. */
+@Composable
+private fun CategoryImage(url: String, label: String, modifier: Modifier = Modifier) {
+    val avatar: @Composable () -> Unit = {
+        Box(Modifier.fillMaxSize().background(Brand.OrangeSoft), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.Person, contentDescription = null, tint = Brand.OrangeLight, modifier = Modifier.fillMaxSize(0.6f))
+        }
+    }
+    Box(modifier.clip(CircleShape)) {
+        if (url.isBlank()) {
+            avatar()
+        } else {
+            SubcomposeAsyncImage(
+                model = url.trim(),
+                contentDescription = label,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                loading = { avatar() },
+                error = { avatar() },
+            )
+        }
     }
 }
 

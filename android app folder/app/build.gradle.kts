@@ -79,6 +79,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.material.icons.core)
+    implementation(libs.coil.compose)
 
     // Google sign-in through Android's Credential Manager
     implementation(libs.androidx.credentials)
