@@ -3,8 +3,9 @@
  * index.php — Mary Hair salon homepage
  * ---------------------------------------------------------------
  * Assembly only — see components/ for the actual pieces and their
- * styling. This file just picks the content that goes into each
- * reusable section.
+ * styling. Featured styles, deals and the team are loaded from the
+ * Supabase database by assets/js/site-content.js (the sections below
+ * start empty and are filled in by that script).
  * ---------------------------------------------------------------
  */
 require_once __DIR__ . '/components/hero.php';
@@ -34,35 +35,24 @@ require_once __DIR__ . '/components/picture-slider.php';
 ]); ?>
 
 <?php render_featured_styles([
+    'id'      => 'featuredStyles',
     'eyebrow' => 'Signature Looks',
     'title'   => 'Featured Styles',
-    'items'   => [
-        ['image' => 'assets/images/kael.png',     'label' => 'Knotless Braids', 'href' => 'services.php'],
-        ['image' => 'assets/images/FancyMan.png', 'label' => 'Classic Bob Cut', 'href' => 'services.php'],
-        ['image' => 'assets/images/Mahoraga.png', 'label' => 'Lace Front Install', 'href' => 'services.php'],
-    ],
+    'items'   => [],   // filled from the database (services table)
 ]); ?>
 
 <?php render_picture_slider([
+    'id'      => 'dealsSlider',
     'eyebrow' => 'Limited Time',
     'title'   => 'Discounted Styles & Deals',
-    'items'   => [
-        ['image' => 'assets/images/kael.png',     'badge' => 'Save 20%', 'badge_variant' => 'deal', 'title' => 'Knotless Braids — was R550, now R440', 'href' => 'services.php'],
-        ['image' => 'assets/images/FancyMan.png', 'badge' => 'Save 15%', 'badge_variant' => 'deal', 'title' => 'Classic Bob Cut — was R280, now R238',  'href' => 'services.php'],
-        ['image' => 'assets/images/Mahoraga.png', 'badge' => 'Save R80', 'badge_variant' => 'deal', 'title' => 'Lace Front Install — was R650, now R570', 'href' => 'services.php'],
-        ['image' => 'assets/images/kael.png',     'badge' => 'Save 10%', 'badge_variant' => 'deal', 'title' => 'Kids Cornrows — was R220, now R198',    'href' => 'services.php'],
-    ],
+    'items'   => [],   // filled from the database (services with a discount)
 ]); ?>
 
 <?php render_picture_slider([
+    'id'      => 'teamSlider',
     'eyebrow' => 'Meet The Team',
     'title'   => 'The Hands Behind the Crown',
-    'items'   => [
-        ['image' => 'assets/images/kael.png',     'badge' => 'Braid Specialist',  'title' => 'Thandiwe M.', 'href' => 'about.php'],
-        ['image' => 'assets/images/FancyMan.png', 'badge' => 'Master Barber',      'title' => 'Sipho K.',    'href' => 'about.php'],
-        ['image' => 'assets/images/Mahoraga.png', 'badge' => 'Wig Specialist',     'title' => 'Naledi P.',   'href' => 'about.php'],
-        ['image' => 'assets/images/kael.png',     'badge' => 'Kids Styling',       'title' => 'Bontle S.',   'href' => 'about.php'],
-    ],
+    'items'   => [],   // filled from the database (stylists)
 ]); ?>
 
 <section class="home-cta">
@@ -76,6 +66,8 @@ require_once __DIR__ . '/components/picture-slider.php';
     ?>
   </div>
 </section>
+
+<script type="module" src="assets/js/site-content.js"></script>
 
 <?php include __DIR__ . '/components/booking-modal.php'; ?>
 <?php include __DIR__ . '/components/auth-modal.php'; ?>

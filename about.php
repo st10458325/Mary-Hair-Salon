@@ -9,7 +9,7 @@ require_once __DIR__ . '/components/picture-slider.php';
 $stats = [
     ['value' => '7+',  'label' => 'Years Styling'],
     ['value' => '2.4k', 'label' => 'Clients Served'],
-    ['value' => '4',   'label' => 'Specialist Stylists'],
+    ['value' => '…',   'label' => 'Specialist Stylists', 'stat' => 'stylists'],   // live count from the database
     ['value' => '4.9', 'label' => 'Average Rating'],
 ];
 ?>
@@ -43,7 +43,7 @@ $stats = [
     <div class="about-story__stats">
       <?php foreach ($stats as $stat): ?>
         <div class="about-stat glass">
-          <span class="about-stat__value"><?= htmlspecialchars($stat['value']) ?></span>
+          <span class="about-stat__value"<?= isset($stat['stat']) ? ' data-stat="' . htmlspecialchars($stat['stat']) . '"' : '' ?>><?= htmlspecialchars($stat['value']) ?></span>
           <span class="about-stat__label"><?= htmlspecialchars($stat['label']) ?></span>
         </div>
       <?php endforeach; ?>
@@ -52,15 +52,13 @@ $stats = [
 </section>
 
 <?php render_picture_slider([
+    'id'      => 'teamSlider',
     'eyebrow' => 'Meet The Team',
     'title'   => 'The Stylists',
-    'items'   => [
-        ['image' => 'assets/images/kael.png',     'badge' => 'Braid Specialist',  'title' => 'Thandiwe M.', 'href' => '#'],
-        ['image' => 'assets/images/FancyMan.png', 'badge' => 'Master Barber',      'title' => 'Sipho K.',    'href' => '#'],
-        ['image' => 'assets/images/Mahoraga.png', 'badge' => 'Wig Specialist',     'title' => 'Naledi P.',   'href' => '#'],
-        ['image' => 'assets/images/kael.png',     'badge' => 'Kids Styling',       'title' => 'Bontle S.',   'href' => '#'],
-    ],
+    'items'   => [],   // filled from the database (stylists) by assets/js/site-content.js
 ]); ?>
+
+<script type="module" src="assets/js/site-content.js"></script>
 
 <?php include __DIR__ . '/components/booking-modal.php'; ?>
 <?php include __DIR__ . '/components/auth-modal.php'; ?>

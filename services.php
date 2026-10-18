@@ -2,9 +2,8 @@
 /**
  * services.php — Mary Hair salon
  * ---------------------------------------------------------------
- * Categories and services now live in Firestore (`categories` and
- * `services` collections) instead of hardcoded PHP arrays — PHP
- * can't read Firestore without the Admin SDK, so this page renders
+ * Categories and services live in the Supabase `categories` and
+ * `services` tables (shared with the Android app). This page renders
  * an empty shell and the script below fetches + builds the cards
  * client-side. category-card.php / service-card.php are still
  * require_once'd purely for their <style> blocks; the JS below
@@ -21,8 +20,6 @@ require_once __DIR__ . '/components/service-card.php';
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Our Services — Mary Hair salon</title>
 <link rel="stylesheet" href="style.css">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js">
 </head>
 <body>
 
@@ -45,7 +42,7 @@ require_once __DIR__ . '/components/service-card.php';
 
     <p class="services-status" id="servicesLoading">Loading services…</p>
 
-    <!-- Level 1: category grid, built by JS after Firestore fetch -->
+    <!-- Level 1: category grid, built by JS after the Supabase fetch -->
     <div class="categories-grid" id="categoriesGrid"></div>
 
     <!-- Level 2: one sub-list per category, built by JS -->
@@ -168,8 +165,7 @@ require_once __DIR__ . '/components/service-card.php';
 </style>
 
 <script type="module">
-  import { db } from '/assets/js/firebase-config.js';
-  import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+  import { supabase, formatZAR } from './assets/js/supabase-client.js';
 
   const CATEGORY_ICONS = {
     braid:    '<path d="M7.5 1v13M4 3c0 2 2 2 2 4s-2 2-2 4M11 3c0 2-2 2-2 4s2 2 2 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
@@ -177,6 +173,14 @@ require_once __DIR__ . '/components/service-card.php';
     smile:    '<circle cx="7.5" cy="7.5" r="6.3" stroke="currentColor" stroke-width="1.2"/><path d="M4.8 9c.6 1 1.6 1.6 2.7 1.6S9.6 10 10.2 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="5.4" cy="6.2" r="0.8" fill="currentColor"/><circle cx="9.6" cy="6.2" r="0.8" fill="currentColor"/>',
     wig:      '<path d="M7.5 2c-3 0-5 2.2-5 5.2 0 1.8.6 3 1.2 4.3.2.5.8.6 1-.1l.5-1.6M7.5 2c3 0 5 2.2 5 5.2 0 1.8-.6 3-1.2 4.3-.2.5-.8.6-1-.1l-.5-1.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>',
     tag:      '<path d="M2 7.6V3.5C2 2.7 2.7 2 3.5 2h4.1c.4 0 .8.2 1.1.4l5 5c.6.6.6 1.5 0 2.1l-3.6 3.6c-.6.6-1.5.6-2.1 0l-5-5C2.2 7.8 2 7.4 2 7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="5.2" cy="5.2" r="0.9" fill="currentColor"/>',
+    // Icons used by the seeded categories (supabase/seed/seed-data.js)
+    lines:    '<path d="M3 2v11M7.5 2v11M12 2v11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    loop:     '<path d="M5 2c-2 2-2 4 0 5.5S7 11 5 13M10 2c-2 2-2 4 0 5.5s2 3.5 0 5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    leaf:     '<path d="M2.5 12.5C2.5 6 6 2.5 12.5 2.5 12.5 9 9 12.5 2.5 12.5zM2.5 12.5L8 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>',
+    drop:     '<path d="M7.5 1.8S3.5 6.3 3.5 9a4 4 0 008 0c0-2.7-4-7.2-4-7.2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>',
+    palette:  '<path d="M7.5 1.5a6 6 0 100 12c.9 0 1.2-.7.8-1.4-.5-.8 0-1.6.9-1.6h1.6a2.7 2.7 0 002.7-2.7c0-3.4-2.7-6.3-6-6.3z" stroke="currentColor" stroke-width="1.2"/><circle cx="4.6" cy="7" r=".9" fill="currentColor"/><circle cx="6.8" cy="4.3" r=".9" fill="currentColor"/><circle cx="9.9" cy="4.8" r=".9" fill="currentColor"/>',
+    star:     '<path d="M7.5 1.5L9 5.3l4 .3-3.1 2.6 1 3.9-3.4-2.2-3.4 2.2 1-3.9L2 5.6l4-.3z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>',
+    sparkle:  '<path d="M7.5 1.5v3M7.5 10.5v3M1.5 7.5h3M10.5 7.5h3M3.3 3.3l2 2M9.7 9.7l2 2M3.3 11.7l2-2M9.7 5.3l2-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>',
     grid:     '<rect x="1" y="1" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="8" y="1" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="1" y="8" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="8" y="8" width="5.5" height="5.5" rx="1" fill="currentColor"/>',
   };
   function categoryIcon(icon){ return CATEGORY_ICONS[icon] || CATEGORY_ICONS.grid; }
@@ -192,7 +196,7 @@ require_once __DIR__ . '/components/service-card.php';
 
   function categoryCardHtml(cat){
     const img = cat.image ? `<img src="${escapeHtml(cat.image)}" alt="${escapeHtml(cat.label)}" loading="lazy">` : '';
-    const desc = cat.desc ? `<span class="category-card__desc">${escapeHtml(cat.desc)}</span>` : '';
+    const desc = cat.description ? `<span class="category-card__desc">${escapeHtml(cat.description)}</span>` : '';
     const count = cat.count || 0;
     return `
       <button type="button" class="category-card glass" data-category-card data-category-id="${escapeHtml(cat.id)}">
@@ -220,7 +224,13 @@ require_once __DIR__ . '/components/service-card.php';
     const tags = Array.isArray(svc.tags) && svc.tags.length
       ? `<ul class="service-card__tags">${svc.tags.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul>`
       : '';
-    const searchable = `${svc.title || ''} ${svc.category || ''} ${(svc.tags || []).join(' ')}`.toLowerCase();
+    const searchable = `${svc.title || ''} ${svc.category_label || svc.category_id || ''} ${(svc.tags || []).join(' ')}`.toLowerCase();
+    const price = Number(svc.price) || 0;
+    const discount = Number(svc.discount) || 0;
+    const finalPrice = price * (1 - discount / 100);
+    const priceHtml = discount > 0
+      ? `<s>${formatZAR(price)}</s> ${formatZAR(finalPrice)} <small>(-${discount}%)</small>`
+      : formatZAR(price);
 
     return `
       <article class="service-card glass" data-search="${escapeHtml(searchable)}">
@@ -230,11 +240,11 @@ require_once __DIR__ . '/components/service-card.php';
           ${desc}
           ${tags}
           <div class="service-card__footer">
-            <span class="service-card__price">${escapeHtml(svc.price || '')}</span>
+            <span class="service-card__price">${priceHtml}</span>
             <button type="button" class="service-card__book" data-book-now
+              data-service-id="${escapeHtml(svc.id)}"
               data-service-title="${escapeHtml(svc.title)}"
-              data-service-price="${escapeHtml(svc.price || '')}"
-              data-service-category="${escapeHtml(svc.category || '')}">
+              data-service-category="${escapeHtml(svc.category_id || '')}">
               Book Now
             </button>
           </div>
@@ -309,8 +319,8 @@ require_once __DIR__ . '/components/service-card.php';
       const btn = e.target.closest('[data-book-now]');
       if(!btn) return;
       window.openBookingModal({
+        serviceId: btn.dataset.serviceId,
         title: btn.dataset.serviceTitle,
-        price: btn.dataset.servicePrice,
         category: btn.dataset.serviceCategory,
       });
     });
@@ -318,21 +328,21 @@ require_once __DIR__ . '/components/service-card.php';
 
   async function loadCatalog(){
     try {
-      const [catSnap, svcSnap] = await Promise.all([
-        getDocs(collection(db, 'categories')),
-        getDocs(collection(db, 'services')),
+      const [catRes, svcRes] = await Promise.all([
+        supabase.from('categories').select('*').order('label'),
+        supabase.from('services').select('*').eq('is_active', true).order('title'),
       ]);
+      if(catRes.error) throw catRes.error;
+      if(svcRes.error) throw svcRes.error;
 
-      const categories = [];
-      catSnap.forEach(d => categories.push({ id: d.id, ...d.data() }));
-
-      const services = [];
-      svcSnap.forEach(d => services.push({ id: d.id, ...d.data() }));
+      const categories = catRes.data;
+      const labels = Object.fromEntries(categories.map(c => [c.id, c.label]));
+      const services = svcRes.data.map(s => ({ ...s, category_label: labels[s.category_id] || '' }));
 
       const byCategory = {};
       services.forEach(s => {
-        if(!byCategory[s.category]) byCategory[s.category] = [];
-        byCategory[s.category].push(s);
+        if(!byCategory[s.category_id]) byCategory[s.category_id] = [];
+        byCategory[s.category_id].push(s);
       });
       categories.forEach(c => { c.count = (byCategory[c.id] || []).length; });
 

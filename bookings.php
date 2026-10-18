@@ -2,9 +2,10 @@
 /**
  * bookings.php — Mary Hair salon "My Bookings"
  * ---------------------------------------------------------------
- * Bookings are fetched client-side from Firestore for the logged-in
- * user (PHP can't reach Firestore without the Admin SDK). This file
- * just lays out the shell; components/booking-card.php is still
+ * Bookings are fetched client-side from the Supabase `booking_details`
+ * view (Row Level Security only returns the logged-in customer's own
+ * bookings). Cancelling uses the set_booking_status() database
+ * function. This file just lays out the shell; components/booking-card.php is still
  * require_once'd purely for its <style> block — the card markup
  * itself is built in JS below so it can be re-rendered on cancel.
  * ---------------------------------------------------------------
@@ -19,9 +20,6 @@ require_once __DIR__ . '/components/booking-card.php';
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Bookings — Mary Hair salon</title>
 <link rel="stylesheet" href="style.css">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js">
 </head>
 <body>
 
@@ -216,9 +214,7 @@ require_once __DIR__ . '/components/booking-card.php';
 </style>
 
 <script type="module">
-  import { auth, db } from '/assets/js/firebase-config.js';
-  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js";
-  import { collection, query, where, orderBy, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+  import { supabase, getUser, friendlyError, formatZAR, formatDate } from './assets/js/supabase-client.js';
 
   const grid = document.getElementById('bookingsGrid');
   const loading = document.getElementById('bookingsLoading');
@@ -280,16 +276,17 @@ require_once __DIR__ . '/components/booking-card.php';
       <div class="bookings-grid__item" data-status="${status}">
         <article class="booking-card glass booking-card--${status}">
           <div class="booking-card__top">
-            <h3>${escapeHtml(b.service || 'Service')}</h3>
+            <h3>${escapeHtml(b.service_title || 'Service')}</h3>
             <span class="booking-card__status">${statusLabel(status)}</span>
           </div>
           <div class="booking-card__meta">
-            <span><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="10.5" rx="1.3" stroke="currentColor" stroke-width="1.2"/><path d="M1 5.5H13" stroke="currentColor" stroke-width="1.2"/></svg>${escapeHtml(b.dateFormatted || b.date || '')}</span>
-            <span><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 4v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>${escapeHtml(b.time || '')}</span>
+            <span><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="10.5" rx="1.3" stroke="currentColor" stroke-width="1.2"/><path d="M1 5.5H13" stroke="currentColor" stroke-width="1.2"/></svg>${escapeHtml(formatDate(b.booking_date))}</span>
+            <span><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 4v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>${escapeHtml(b.booking_time || '')}</span>
+            <span><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="4.3" r="2.4" stroke="currentColor" stroke-width="1.2"/><path d="M2.2 12.5c.8-2.4 2.7-3.7 4.8-3.7s4 1.3 4.8 3.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>${escapeHtml(b.stylist_name || 'Stylist')}</span>
             <span><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5c-2.5 0-4.2 1.9-4.2 4.3 0 3 4.2 6.7 4.2 6.7s4.2-3.7 4.2-6.7c0-2.4-1.7-4.3-4.2-4.3z" stroke="currentColor" stroke-width="1.2"/></svg>${escapeHtml(b.type || 'Outcall')}${location}</span>
           </div>
           <div class="booking-card__bottom">
-            <span class="booking-card__price">${b.price ? 'R' + escapeHtml(b.price) : ''}</span>
+            <span class="booking-card__price">${escapeHtml(formatZAR(b.total))}</span>
             ${actions}
           </div>
         </article>
@@ -311,12 +308,16 @@ require_once __DIR__ . '/components/booking-card.php';
     grid.innerHTML = '';
 
     try {
-      const q = query(collection(db, 'bookings'), where('uid', '==', uid), orderBy('date', 'desc'));
-      const snap = await getDocs(q);
+      const { data, error } = await supabase
+        .from('booking_details')
+        .select('*')
+        .eq('customer_id', uid)
+        .order('booking_date', { ascending: false })
+        .order('booking_time', { ascending: false });
+      if(error) throw error;
 
       const statusOrder = { pending: 0, upcoming: 1, completed: 2, cancelled: 3 };
-      const bookings = [];
-      snap.forEach(docSnap => bookings.push({ id: docSnap.id, ...docSnap.data() }));
+      const bookings = data.slice();
       bookings.sort((a, b) => (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3));
       currentBookings = bookings;
 
@@ -340,10 +341,15 @@ require_once __DIR__ . '/components/booking-card.php';
     }
   }
 
-  onAuthStateChanged(auth, (user) => {
+  let currentUid = null;
+  supabase.auth.onAuthStateChange((_event, session) => {
+    const user = session?.user ?? null;
+    if(user && user.id === currentUid) return;   // token refresh etc.: nothing to reload
+    currentUid = user?.id ?? null;
     if(user){
       loggedOut.hidden = true;
-      loadBookings(user.uid);
+      // Run outside the auth callback (Supabase recommends not awaiting inside it).
+      setTimeout(() => loadBookings(user.id), 0);
     } else {
       loading.hidden = true;
       grid.innerHTML = '';
@@ -382,6 +388,12 @@ require_once __DIR__ . '/components/booking-card.php';
     openCancelConfirm(cancelBtn.dataset.cancel);
   });
 
+  // Reload after the booking modal creates or reschedules a booking.
+  window.addEventListener('booking:saved', async () => {
+    const user = await getUser();
+    if(user) loadBookings(user.id);
+  });
+
   confirmDialog?.addEventListener('click', async (e) => {
     if(e.target.closest('[data-cancel-confirm-dismiss]')){
       closeCancelConfirm();
@@ -394,12 +406,17 @@ require_once __DIR__ . '/components/booking-card.php';
     if(e.target.closest('[data-cancel-confirm-accept]')){
       if(!pendingCancelId) return;
       try {
-        await updateDoc(doc(db, 'bookings', pendingCancelId), { status: 'cancelled' });
+        const { error } = await supabase.rpc('set_booking_status', {
+          p_booking_id: pendingCancelId,
+          p_status: 'cancelled',
+        });
+        if(error) throw error;
         showBookingsToast('Booking cancelled.', 'success');
-        if(auth.currentUser) loadBookings(auth.currentUser.uid);
+        const user = await getUser();
+        if(user) loadBookings(user.id);
       } catch(err){
         console.error(err);
-        showBookingsToast('Could not cancel this booking. Please try again.', 'error');
+        showBookingsToast(friendlyError(err), 'error');
       } finally {
         closeCancelConfirm();
       }

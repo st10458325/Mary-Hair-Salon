@@ -2,9 +2,8 @@
 /**
  * contact.php — Mary Hair salon
  * ---------------------------------------------------------------
- * The contact form has no backend yet (matches the pattern used
- * by booking-modal.php and auth-form.php) — it shows a placeholder
- * confirmation on submit.
+ * The contact form saves to the Supabase `messages` table
+ * (anyone may send one; only managers can read them).
  * ---------------------------------------------------------------
  */
 require_once __DIR__ . '/components/hero.php';
@@ -31,7 +30,7 @@ require_once __DIR__ . '/components/hero.php';
 <section class="contact-section">
   <div class="contact-section__inner">
 
-    <form class="contact-form glass" id="contactForm">
+    <form class="contact-form glass" id="contactForm" method="post" action="">
       <h2>Send a Message</h2>
 
       <label class="contact-form__field">
@@ -161,8 +160,7 @@ require_once __DIR__ . '/components/hero.php';
 </style>
 
 <script type="module">
-  import { db } from '/assets/js/firebase-config.js';
-  import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+  import { supabase, friendlyError } from './assets/js/supabase-client.js';
 
   document.getElementById('contactForm').addEventListener('submit', async function(e){
     e.preventDefault();
@@ -173,17 +171,17 @@ require_once __DIR__ . '/components/hero.php';
     submitBtn.textContent = 'Sending…';
 
     try {
-      await addDoc(collection(db, 'messages'), {
-        name: data.get('name'),
-        email: data.get('email'),
-        message: data.get('message'),
-        createdAt: serverTimestamp(),
+      const { error } = await supabase.from('messages').insert({
+        name: String(data.get('name')).trim(),
+        email: String(data.get('email')).trim(),
+        message: String(data.get('message')).trim(),
       });
+      if(error) throw error;
       alert("Message sent! We'll get back to you soon.");
       form.reset();
     } catch(err){
       console.error(err);
-      alert('Something went wrong sending your message. Please try again.');
+      alert(friendlyError(err));
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Send Message';
