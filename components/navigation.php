@@ -14,7 +14,7 @@
  * Its href always points to login.php, so it still works with no
  * JS or on a page that hasn't included the modal.
  *
- * Firebase Auth state (assets/js/firebase-config.js) drives whether
+ * Supabase Auth state (assets/js/supabase-client.js) drives whether
  * the account icon shows "log in" or "logged in" state, and whether
  * the Log Out button is visible. No JS = defaults to logged-out look.
  * ---------------------------------------------------------------
@@ -246,8 +246,7 @@ if (!function_exists('nav_is_current')) {
 </style>
 
 <script type="module">
-  import { auth } from '/assets/js/firebase-config.js';
-  import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js";
+  import { supabase, displayName } from './assets/js/supabase-client.js';
 
   const nav = document.querySelector('[data-nav]');
   if(nav){
@@ -290,7 +289,7 @@ if (!function_exists('nav_is_current')) {
 
     function applyAuthState(user){
       if(user){
-        const label = (user.displayName || user.email || 'Account').trim();
+        const label = displayName(user);
         accountLink.href = 'bookings.php';
         accountLink.removeAttribute('data-open-auth');
         accountLink.setAttribute('aria-label', `Account: ${label}`);
@@ -317,10 +316,11 @@ if (!function_exists('nav_is_current')) {
       }
     }
 
-    onAuthStateChanged(auth, applyAuthState);
+    // Fires once on page load (INITIAL_SESSION) and again on every login/logout.
+    supabase.auth.onAuthStateChange((_event, session) => applyAuthState(session?.user ?? null));
 
     async function doLogout(){
-      await signOut(auth);
+      await supabase.auth.signOut();
       window.location.href = 'index.php';
     }
     logoutBtn.addEventListener('click', doLogout);

@@ -8,13 +8,17 @@
  * only the color theme changed (orange/glass instead of pink).
  *
  * Include it ONCE per page, then open it from anywhere:
- *   window.openBookingModal({ category: 'braids', title: 'Box Braids', price: 'From R450' });
+ *   window.openBookingModal({ serviceId: 'box-braids', category: 'braids' });
+ *   window.openBookingModal(null, bookingDetailsRow);   // reschedule
  *
- * The Service/Style dropdowns use a small static catalog for now
- * (no DB yet) — once services live in a database, swap the
- * <option> lists below for a real query; nothing else needs to
- * change. Calendar availability (unavailableDays) is demo data
- * for the same reason.
+ * Data comes from Supabase (same database as the Android app):
+ *   - "Service" = categories table, "Style" = services table
+ *   - stylists = profiles with role 'employee'
+ *   - busy time slots = taken_times() database function
+ *   - saving = create_booking() / reschedule_booking() database
+ *     functions, which read the price from the services table and
+ *     refuse double bookings. Cost and discount are display-only.
+ * After saving it fires a 'booking:saved' event (bookings.php reloads).
  * ---------------------------------------------------------------
  */
 ?>
@@ -93,7 +97,7 @@
           <span class="bm-field__icon"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.6V3.5C2 2.7 2.7 2 3.5 2h4.1c.4 0 .8.2 1.1.4l5 5c.6.6.6 1.5 0 2.1l-3.6 3.6c-.6.6-1.5.6-2.1 0l-5-5C2.2 7.8 2 7.4 2 7z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><circle cx="5.2" cy="5.2" r="0.8" fill="currentColor"/></svg></span>
           <span class="bm-field__body">
             <span class="bm-field__label">Cost (ZAR)</span>
-            <input type="number" name="cost" id="bmCost" placeholder="e.g. 350" min="0">
+            <input type="number" name="cost" id="bmCost" placeholder="Choose a style" readonly tabindex="-1">
           </span>
         </label>
       </div>
@@ -172,7 +176,7 @@
           <span class="bm-field__icon"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="4" cy="4" r="1.8" stroke="currentColor" stroke-width="1.1"/><circle cx="11" cy="11" r="1.8" stroke="currentColor" stroke-width="1.1"/><path d="M11.5 2.5l-9 9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></span>
           <span class="bm-field__body">
             <span class="bm-field__label">Applicable Discount (%)</span>
-            <input type="number" name="discount" id="bmDiscount" placeholder="e.g. 10" min="0" max="100" value="0">
+            <input type="number" name="discount" id="bmDiscount" value="0" readonly tabindex="-1">
           </span>
         </label>
       </div>
@@ -431,6 +435,9 @@
   }
   .bm-time-slot:hover{ border-color: var(--orange-glow); }
   .bm-time-slot.selected{ background: var(--orange); border-color: var(--orange); color: #fff; }
+  .bm-time-slot.is-taken{ opacity: .35; text-decoration: line-through; cursor: not-allowed; pointer-events: none; }
+  .bm-employee-empty{ font-size: 0.85rem; color: var(--text-dim); }
+  #bmCost[readonly], #bmDiscount[readonly]{ cursor: default; }
   .bm-time-note{
     margin-top: 14px;
     background: var(--orange-soft);
@@ -526,8 +533,7 @@
 </style>
 
 <script type="module">
-  import { auth, db } from '/assets/js/firebase-config.js';
-  import { addDoc, collection, serverTimestamp, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+  import { supabase, getUser, friendlyError, formatZAR } from './assets/js/supabase-client.js';
 
 (function(){
   const modal = document.getElementById('bookingModal');
@@ -549,53 +555,54 @@
     }, 4200);
   }
 
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML;
+  }
+
+  /* ---------------- Catalogue (Supabase: categories + services) ---------------- */
   let catalogReady;
+  let servicesById = {};
   let servicesByCategory = {};
 
-  const serviceSelect = document.getElementById('bmService');
-  const styleSelect = document.getElementById('bmStyle');
+  const serviceSelect = document.getElementById('bmService');   // category
+  const styleSelect = document.getElementById('bmStyle');       // service (value = service id)
+  const costInput = document.getElementById('bmCost');
+  const discountInput = document.getElementById('bmDiscount');
   const employeeRow = document.getElementById('bmEmployeeRow');
   const employeeInput = document.getElementById('bmEmployeeInput');
 
-  function createAvatar(initials, bg, fg = '#ffffff'){
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
-      <rect width="120" height="120" rx="60" fill="${bg}"/>
-      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="46" fill="${fg}" font-weight="700">${initials}</text>
-    </svg>`;
-    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  function initCatalog(){
+    catalogReady = (async () => {
+      try {
+        const [catRes, svcRes] = await Promise.all([
+          supabase.from('categories').select('id, label').order('label'),
+          supabase.from('services').select('id, category_id, title, price, discount').eq('is_active', true).order('title'),
+        ]);
+        if(catRes.error) throw catRes.error;
+        if(svcRes.error) throw svcRes.error;
+
+        serviceSelect.innerHTML = '<option value="" selected disabled>Select a service</option>';
+        catRes.data.forEach(cat => {
+          const option = document.createElement('option');
+          option.value = cat.id;
+          option.textContent = cat.label || cat.id;
+          serviceSelect.appendChild(option);
+        });
+
+        servicesById = {};
+        servicesByCategory = {};
+        svcRes.data.forEach(svc => {
+          servicesById[svc.id] = svc;
+          (servicesByCategory[svc.category_id] ||= []).push(svc);
+        });
+      } catch(err){
+        console.error('Failed to load service catalog', err);
+        serviceSelect.innerHTML = '<option value="" selected disabled>Could not load services</option>';
+      }
+    })();
   }
-
-  const employees = [
-    { id: 'mia', name: 'Mia Stevens', role: 'Senior Stylist', avatar: createAvatar('MS', '#d96b2b') },
-    { id: 'leo', name: 'Leo Carter', role: 'Colour Specialist', avatar: createAvatar('LC', '#7c4dff') },
-    { id: 'zara', name: 'Zara Mhlanga', role: 'Precision Cuts', avatar: createAvatar('ZM', '#1e9d7a') },
-  ];
-  let selectedEmployeeId = null;
-
-  function renderEmployees(){
-    if(!employeeRow) return;
-    employeeRow.innerHTML = employees.map(emp => `
-      <button type="button" class="bm-employee-card${selectedEmployeeId === emp.id ? ' is-selected' : ''}" data-employee-id="${emp.id}">
-        <img class="bm-employee-card__image" src="${emp.avatar}" alt="${emp.name}" />
-        <span class="bm-employee-card__name">${emp.name}</span>
-        <span class="bm-employee-card__role">${emp.role}</span>
-      </button>
-    `).join('');
-  }
-
-  function selectEmployee(value){
-    const match = employees.find(emp => emp.id === value || emp.name === value);
-    if(!match) return;
-    selectedEmployeeId = match.id;
-    if(employeeInput) employeeInput.value = match.name;
-    renderEmployees();
-  }
-
-  employeeRow?.addEventListener('click', (e) => {
-    const card = e.target.closest('[data-employee-id]');
-    if(!card) return;
-    selectEmployee(card.dataset.employeeId);
-  });
 
   function setSelectValue(select, value){
     if(value == null || value === '') return false;
@@ -605,47 +612,91 @@
     return true;
   }
 
-  function initCatalog(){
-    catalogReady = (async () => {
-      try {
-        const [catSnap, svcSnap] = await Promise.all([
-          getDocs(collection(db, 'categories')),
-          getDocs(collection(db, 'services')),
-        ]);
-
-        serviceSelect.innerHTML = '<option value="" selected disabled>Select a service</option>';
-        catSnap.forEach(d => {
-          const cat = d.data();
-          const option = document.createElement('option');
-          option.value = d.id;
-          option.textContent = cat.label || d.id;
-          serviceSelect.appendChild(option);
-        });
-
-        servicesByCategory = {};
-        svcSnap.forEach(d => {
-          const svc = d.data();
-          if(!servicesByCategory[svc.category]) servicesByCategory[svc.category] = [];
-          servicesByCategory[svc.category].push(svc.title);
-        });
-      } catch(err){
-        console.error('Failed to load service catalog', err);
-      }
-    })();
-  }
-
-  function populateStyles(category, preferredStyle){
+  function populateStyles(categoryId, preferredServiceId){
     styleSelect.innerHTML = '<option value="" selected disabled>Select a style</option>';
-    const styles = servicesByCategory[category] || [];
-    styles.forEach(style => {
+    const services = servicesByCategory[categoryId] || [];
+    services.forEach(svc => {
       const option = document.createElement('option');
-      option.value = style;
-      option.textContent = style;
+      option.value = svc.id;
+      option.textContent = svc.title;
       styleSelect.appendChild(option);
     });
-    styleSelect.disabled = styles.length === 0;
-    if(preferredStyle) setSelectValue(styleSelect, preferredStyle);
+    styleSelect.disabled = services.length === 0;
+    if(preferredServiceId) setSelectValue(styleSelect, preferredServiceId);
+    applyServicePrice();
   }
+
+  /** Cost/discount always come from the services table (the database uses the same values). */
+  function applyServicePrice(){
+    const svc = servicesById[styleSelect.value];
+    costInput.value = svc ? Number(svc.price) : '';
+    discountInput.value = svc ? Number(svc.discount) : 0;
+  }
+
+  /* ---------------- Stylists (Supabase: profiles with role 'employee') ---------------- */
+  const AVATAR_COLOURS = ['#d96b2b', '#7c4dff', '#1e9d7a', '#c2185b', '#1976d2', '#8d6e63'];
+  let stylists = [];
+  let selectedStylistId = null;
+
+  function createAvatar(initials, bg, fg = '#ffffff'){
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+      <rect width="120" height="120" rx="60" fill="${bg}"/>
+      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="46" fill="${fg}" font-weight="700">${initials}</text>
+    </svg>`;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  }
+
+  async function loadStylists(){
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name, surname, title, photo_url')
+      .eq('role', 'employee')
+      .order('name');
+    if(error){
+      console.error('Failed to load stylists', error);
+      stylists = [];
+      return;
+    }
+    stylists = data.map((p, i) => {
+      const name = `${p.name || ''} ${p.surname || ''}`.trim() || 'Stylist';
+      const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+      return {
+        id: p.id,
+        name,
+        role: p.title || 'Stylist',
+        avatar: p.photo_url || createAvatar(initials, AVATAR_COLOURS[i % AVATAR_COLOURS.length]),
+      };
+    });
+  }
+
+  function renderEmployees(){
+    if(!employeeRow) return;
+    if(stylists.length === 0){
+      employeeRow.innerHTML = '<p class="bm-employee-empty">No stylists available right now.</p>';
+      return;
+    }
+    employeeRow.innerHTML = stylists.map(emp => `
+      <button type="button" class="bm-employee-card${selectedStylistId === emp.id ? ' is-selected' : ''}" data-employee-id="${escapeHtml(emp.id)}">
+        <img class="bm-employee-card__image" src="${escapeHtml(emp.avatar)}" alt="${escapeHtml(emp.name)}" />
+        <span class="bm-employee-card__name">${escapeHtml(emp.name)}</span>
+        <span class="bm-employee-card__role">${escapeHtml(emp.role)}</span>
+      </button>
+    `).join('');
+  }
+
+  function selectEmployee(id){
+    const match = stylists.find(emp => emp.id === id);
+    selectedStylistId = match ? match.id : null;
+    if(employeeInput) employeeInput.value = match ? match.name : '';
+    renderEmployees();
+    refreshTakenTimes();
+  }
+
+  employeeRow?.addEventListener('click', (e) => {
+    const card = e.target.closest('[data-employee-id]');
+    if(!card) return;
+    selectEmployee(card.dataset.employeeId);
+  });
 
   /* ---------------- Booking type ---------------- */
   const incallOption = document.getElementById('bmIncall');
@@ -654,10 +705,10 @@
   let bookingType = 'Outcall';
 
   function setBookingType(type){
-    bookingType = type;
-    incallOption.classList.toggle('is-active', type === 'Incall');
-    outcallOption.classList.toggle('is-active', type === 'Outcall');
-    locationField.style.display = (type === 'Outcall') ? 'flex' : 'none';
+    bookingType = type === 'Incall' ? 'Incall' : 'Outcall';
+    incallOption.classList.toggle('is-active', bookingType === 'Incall');
+    outcallOption.classList.toggle('is-active', bookingType === 'Outcall');
+    locationField.style.display = (bookingType === 'Outcall') ? 'flex' : 'none';
     updateSummary();
   }
   incallOption.addEventListener('click', () => setBookingType('Incall'));
@@ -675,11 +726,12 @@
     viewYear: today.getFullYear(),
     viewMonth: today.getMonth(),
     selectedDate: null,
-    // demo unavailable days (day-of-month numbers) — replace with real availability data later
-    unavailableDays: [10, 11, 17, 18, 24, 25],
+    // Day-of-month numbers the salon is closed. Empty = open every day.
+    unavailableDays: [],
   };
 
   function pad(n){ return n < 10 ? '0'+n : ''+n; }
+  function todayStr(){ return `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`; }
 
   function renderCalendar(){
     calGrid.innerHTML = '';
@@ -742,6 +794,7 @@
     calState.selectedDate = dateStr;
     document.querySelectorAll('.bm-cal-day.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected');
+    refreshTakenTimes();
     updateSummary();
   }
 
@@ -762,19 +815,36 @@
     return `${d} ${monthNames[m-1].slice(0,3)} ${y}`;
   }
 
-  /* ---------------- Time slots ---------------- */
+  /* ---------------- Time slots (busy ones come from the database) ---------------- */
   const timeGrid = document.getElementById('bmTimeGrid');
   const times = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00'];
   let selectedTime = null;
+  let takenTimes = new Set();
+  let editingSlot = null;   // { stylistId, date, time } of the booking being rescheduled
+  let takenRequest = 0;
+
+  function isPastToday(t){
+    if(calState.selectedDate !== todayStr()) return false;
+    const [h, m] = t.split(':').map(Number);
+    const now = new Date();
+    return h < now.getHours() || (h === now.getHours() && m <= now.getMinutes());
+  }
 
   function renderTimeSlots(){
     timeGrid.innerHTML = '';
     times.forEach(t => {
       const el = document.createElement('div');
       el.className = 'bm-time-slot';
-      if(t === selectedTime) el.classList.add('selected');
       el.textContent = t;
+      const unavailable = takenTimes.has(t) || isPastToday(t);
+      if(unavailable){
+        el.classList.add('is-taken');
+        el.title = takenTimes.has(t) ? 'Already booked' : 'This time has passed';
+        if(selectedTime === t) selectedTime = null;
+      }
+      if(t === selectedTime) el.classList.add('selected');
       el.addEventListener('click', () => {
+        if(unavailable) return;
         selectedTime = t;
         document.querySelectorAll('.bm-time-slot.selected').forEach(n => n.classList.remove('selected'));
         el.classList.add('selected');
@@ -782,19 +852,39 @@
       });
       timeGrid.appendChild(el);
     });
+    updateSummary();
+  }
+
+  async function refreshTakenTimes(){
+    takenTimes = new Set();
+    const stylistId = selectedStylistId;
+    const date = calState.selectedDate;
+    if(!stylistId || !date){ renderTimeSlots(); return; }
+
+    const requestId = ++takenRequest;
+    const { data, error } = await supabase.rpc('taken_times', { p_stylist_id: stylistId, p_date: date });
+    if(requestId !== takenRequest) return;   // a newer request replaced this one
+    if(error){
+      console.error('Failed to load busy times', error);
+    } else {
+      takenTimes = new Set(data.map(r => r.booking_time));
+      // When rescheduling, the booking's own current slot isn't "taken" for this user.
+      if(editingSlot && editingSlot.stylistId === stylistId && editingSlot.date === date){
+        takenTimes.delete(editingSlot.time);
+      }
+    }
+    renderTimeSlots();
   }
 
   /* ---------------- Summary ---------------- */
-  function formatZAR(n){ return 'R' + n.toFixed(2); }
-
   function selectedText(select){
     const option = select.selectedOptions && select.selectedOptions[0];
-    return option ? option.textContent : '-';
+    return option && option.value ? option.textContent : '-';
   }
 
   function updateSummary(){
-    const cost = parseFloat(document.getElementById('bmCost').value) || 0;
-    const discount = parseFloat(document.getElementById('bmDiscount').value) || 0;
+    const cost = parseFloat(costInput.value) || 0;
+    const discount = parseFloat(discountInput.value) || 0;
     const location = document.getElementById('bmLocationInput').value || '-';
 
     document.getElementById('bmSumService').textContent = selectedText(serviceSelect);
@@ -806,25 +896,26 @@
 
     document.getElementById('bmSumCost').textContent = formatZAR(cost);
     document.getElementById('bmSumDiscount').textContent = discount + '%';
-    document.getElementById('bmSumTotal').textContent = formatZAR(cost - (cost * discount / 100));
+    document.getElementById('bmSumTotal').textContent = formatZAR(Math.round(cost * (1 - discount / 100) * 100) / 100);
   }
 
-  ['bmService','bmStyle','bmCost','bmDiscount','bmLocationInput'].forEach(id => {
-    const el = document.getElementById(id);
-    el.addEventListener('input', updateSummary);
-    el.addEventListener('change', updateSummary);
-  });
+  document.getElementById('bmLocationInput').addEventListener('input', updateSummary);
 
   serviceSelect.addEventListener('change', () => {
     populateStyles(serviceSelect.value, '');
     updateSummary();
   });
+  styleSelect.addEventListener('change', () => {
+    applyServicePrice();
+    updateSummary();
+  });
 
-/* ---------------- Prefill from a clicked service card, or an existing booking for reschedule ---------------- */
+  /* ---------------- Open: new booking from a service card, or reschedule an existing one ---------------- */
   let currentEditId = null;
 
   window.openBookingModal = async function(service, bookingRecord = null){
-    if(!auth.currentUser){
+    const user = await getUser();
+    if(!user){
       if(typeof window.openAuthModal === 'function'){
         window.openAuthModal('login');
       } else {
@@ -833,67 +924,69 @@
       return;
     }
     await catalogReady;
+    await loadStylists();
 
     currentEditId = bookingRecord ? bookingRecord.id : null;
+    editingSlot = null;
     document.getElementById('bmSubmitLabel').textContent = bookingRecord ? 'Save Changes' : 'Confirm Booking';
 
     if(bookingRecord){
-      // ---- Reschedule: full prefill from an existing booking doc ----
-      form.querySelector('input[name="name"]').value = bookingRecord.name || '';
-      form.querySelector('input[name="surname"]').value = bookingRecord.surname || '';
+      // ---- Reschedule: prefill from a booking_details row ----
+      form.querySelector('input[name="name"]').value = bookingRecord.customer_name || '';
+      form.querySelector('input[name="surname"]').value = bookingRecord.customer_surname || '';
       form.querySelector('input[name="contact"]').value = bookingRecord.contact || '';
       document.getElementById('bmNotes').value = bookingRecord.notes || '';
-      document.getElementById('bmCost').value = bookingRecord.cost ?? '';
-      document.getElementById('bmDiscount').value = bookingRecord.discount ?? 0;
       document.getElementById('bmLocationInput').value = bookingRecord.location || '';
 
-      setSelectValue(serviceSelect, bookingRecord.category);
-      populateStyles(bookingRecord.category, bookingRecord.service);
-
+      setSelectValue(serviceSelect, bookingRecord.category_id);
+      populateStyles(bookingRecord.category_id, bookingRecord.service_id);
       setBookingType(bookingRecord.type || 'Outcall');
 
-      if(bookingRecord.date){
-        const [y, m] = bookingRecord.date.split('-').map(Number);
+      if(bookingRecord.booking_date){
+        const [y, m] = bookingRecord.booking_date.split('-').map(Number);
         calState.viewYear = y;
         calState.viewMonth = m - 1;
-        calState.selectedDate = bookingRecord.date;
+        calState.selectedDate = bookingRecord.booking_date;
       }
-      selectedTime = bookingRecord.time || null;
+      selectedTime = bookingRecord.booking_time || null;
+      editingSlot = { stylistId: bookingRecord.stylist_id, date: bookingRecord.booking_date, time: bookingRecord.booking_time };
       renderCalendar();
-      renderTimeSlots();
 
       document.getElementById('bookingModalService').textContent =
-        `Rescheduling: ${selectedText(serviceSelect)} / ${bookingRecord.service || ''}`;
+        `Rescheduling: ${bookingRecord.category_label || selectedText(serviceSelect)} / ${bookingRecord.service_title || ''}`;
+      selectEmployee(bookingRecord.stylist_id);
     } else {
-      // ---- New booking from a service card (unchanged behaviour) ----
+      // ---- New booking (optionally from a service card) ----
       service = service || {};
-      const costInput = document.getElementById('bmCost');
+      const svc = servicesById[service.serviceId];
+      const categoryId = svc?.category_id || service.category || '';
 
-      if(service.category){
-        const categorySet = setSelectValue(serviceSelect, service.category);
-        populateStyles(service.category, service.title || '');
-        if(categorySet && service.title){
-          setSelectValue(styleSelect, service.title);
-        }
-        document.getElementById('bookingModalService').textContent = service.title
-          ? `Booking: ${service.categoryLabel || selectedText(serviceSelect)} / ${service.title}`
-          : `Booking: ${service.categoryLabel || selectedText(serviceSelect)}`;
+      if(categoryId){
+        setSelectValue(serviceSelect, categoryId);
+        populateStyles(categoryId, svc?.id || '');
+        document.getElementById('bookingModalService').textContent = svc
+          ? `Booking: ${selectedText(serviceSelect)} / ${svc.title}`
+          : `Booking: ${selectedText(serviceSelect)}`;
       } else {
+        serviceSelect.value = '';
+        populateStyles('', '');
         document.getElementById('bookingModalService').textContent = 'Fill in your details below to secure your booking.';
       }
 
-      if(service.price){
-        const numeric = (service.price.match(/\d+/) || [''])[0];
-        if(numeric) costInput.value = numeric;
+      // Prefill the customer's details from their profile.
+      const nameInput = form.querySelector('input[name="name"]');
+      if(!nameInput.value){
+        const { data: profile } = await supabase.from('profiles')
+          .select('name, surname, contact').eq('id', user.id).maybeSingle();
+        if(profile){
+          nameInput.value = profile.name || '';
+          form.querySelector('input[name="surname"]').value = profile.surname || '';
+          form.querySelector('input[name="contact"]').value = profile.contact || '';
+        }
       }
-
-      if(!service.category){
-        populateStyles('', '');
-        serviceSelect.value = '';
-      }
+      selectEmployee(stylists[0]?.id || null);
     }
 
-    selectEmployee(bookingRecord?.employee || employees[0]?.id || null);
     updateSummary();
     lastFocused = document.activeElement;
     modal.classList.add('is-open');
@@ -909,90 +1002,85 @@
     if(lastFocused) lastFocused.focus();
   }
 
+  function resetForm(){
+    form.reset();
+    currentEditId = null;
+    editingSlot = null;
+    calState.selectedDate = null;
+    selectedTime = null;
+    takenTimes = new Set();
+    setBookingType('Outcall');
+    populateStyles('', '');
+    renderCalendar();
+    renderTimeSlots();
+  }
+
   modal.querySelectorAll('[data-modal-close]').forEach(el => el.addEventListener('click', closeModal));
   document.addEventListener('keydown', (e) => {
     if(e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
   });
 
+  /* ---------------- Save (database functions) ---------------- */
   form.addEventListener('submit', async function(e){
-      e.preventDefault();
-      if(!calState.selectedDate){ showNotice('Please select a date.', 'warning'); return; }
-      if(!selectedTime){ showNotice('Please select a time.', 'warning'); return; }
-      if(!serviceSelect.value){ showNotice('Please select a service category.', 'warning'); return; }
-      if(!styleSelect.value){ showNotice('Please select a style.', 'warning'); return; }
-      if(!auth.currentUser){
-        showNotice('Please log in to book an appointment.', 'warning');
-        closeModal();
-        if(typeof window.openAuthModal === 'function') window.openAuthModal('login');
-        return;
-      }
+    e.preventDefault();
+    if(!styleSelect.value){ showNotice('Please select a service and style.', 'warning'); return; }
+    if(!selectedStylistId){ showNotice('Please choose a stylist.', 'warning'); return; }
+    if(!calState.selectedDate){ showNotice('Please select a date.', 'warning'); return; }
+    if(!selectedTime){ showNotice('Please select a time.', 'warning'); return; }
+    if(bookingType === 'Outcall' && !document.getElementById('bmLocationInput').value.trim()){
+      showNotice('Please enter an address for an outcall booking.', 'warning'); return;
+    }
+    if(!(await getUser())){
+      showNotice('Please log in to book an appointment.', 'warning');
+      closeModal();
+      if(typeof window.openAuthModal === 'function') window.openAuthModal('login');
+      return;
+    }
 
-      const submitBtn = form.querySelector('.bm-submit');
-      submitBtn.disabled = true;
+    const submitBtn = form.querySelector('.bm-submit');
+    submitBtn.disabled = true;
 
-      const cost = parseFloat(document.getElementById('bmCost').value) || 0;
-      const discount = parseFloat(document.getElementById('bmDiscount').value) || 0;
-      const total = cost - (cost * discount / 100);
+    // Parameter names match the functions in supabase/migrations/003_api.sql.
+    // No price is sent: the database reads it from the services table.
+    const params = {
+      p_service_id: styleSelect.value,
+      p_stylist_id: selectedStylistId,
+      p_type: bookingType,
+      p_location: bookingType === 'Outcall' ? document.getElementById('bmLocationInput').value.trim() : '',
+      p_date: calState.selectedDate,
+      p_time: selectedTime,
+      p_notes: document.getElementById('bmNotes').value.trim(),
+      p_name: form.querySelector('input[name="name"]').value.trim(),
+      p_surname: form.querySelector('input[name="surname"]').value.trim(),
+      p_contact: form.querySelector('input[name="contact"]').value.trim(),
+    };
 
-      const bookingData = {
-        name: form.querySelector('input[name="name"]').value,
-        surname: form.querySelector('input[name="surname"]').value,
-        contact: form.querySelector('input[name="contact"]').value,
-        employee: employeeInput?.value || '',
-        category: serviceSelect.value,
-        categoryLabel: selectedText(serviceSelect),
-        service: selectedText(styleSelect),
-        type: bookingType,
-        location: bookingType === 'Outcall' ? document.getElementById('bmLocationInput').value : '',
-        date: calState.selectedDate,
-        dateFormatted: formatSelectedDate(),
-        time: selectedTime,
-        notes: document.getElementById('bmNotes').value,
-        cost,
-        discount,
-        total,
-        price: total.toFixed(2),
-        status: 'pending',
-      };
+    try {
+      const wasEdit = Boolean(currentEditId);
+      const { error } = wasEdit
+        ? await supabase.rpc('reschedule_booking', { p_booking_id: currentEditId, ...params })
+        : await supabase.rpc('create_booking', params);
+      if(error) throw error;
 
-      try {
-        if(currentEditId){
-          await updateDoc(doc(db, 'bookings', currentEditId), {
-            ...bookingData,
-            updatedAt: serverTimestamp(),
-          });
-          showNotice('Booking updated! Your new date/time is pending confirmation.', 'success');
-        } else {
-          await addDoc(collection(db, 'bookings'), {
-            ...bookingData,
-            uid: auth.currentUser.uid,
-            createdAt: serverTimestamp(),
-          });
-          showNotice('Booking confirmed!', 'success');
-        }
-        closeModal();
-        form.reset();
-        selectEmployee(employees[0]?.id || null);
-        setBookingType('Outcall');
-        calState.selectedDate = null;
-        selectedTime = null;
-        currentEditId = null;
-        populateStyles('', '');
-        renderCalendar();
-        renderTimeSlots();
-        updateSummary();
-      } catch(err){
-        console.error(err);
-        showNotice('Something went wrong saving your booking. Please try again.', 'error');
-      } finally {
-        submitBtn.disabled = false;
-      }
+      showNotice(wasEdit
+        ? 'Booking updated! Your new date/time is pending confirmation.'
+        : 'Booking requested! Your stylist will confirm it soon.', 'success');
+      closeModal();
+      resetForm();
+      window.dispatchEvent(new CustomEvent('booking:saved'));
+    } catch(err){
+      console.error(err);
+      showNotice(friendlyError(err), 'error');
+      refreshTakenTimes();   // e.g. someone else just took the slot
+    } finally {
+      submitBtn.disabled = false;
+    }
   });
+
   /* ---------------- Init ---------------- */
   initCatalog();
   populateStyles('', '');
   renderEmployees();
-  selectEmployee(employees[0]?.id || null);
   setBookingType('Outcall');
   renderCalendar();
   renderTimeSlots();

@@ -26,8 +26,9 @@ if (!function_exists('render_picture_slider')) {
         $eyebrow = htmlspecialchars($opts['eyebrow'] ?? '');
         $title   = htmlspecialchars($opts['title']   ?? '');
         $items   = $opts['items'] ?? [];
+        $id      = htmlspecialchars($opts['id'] ?? '');
         ?>
-        <section class="pic-slider" data-picture-slider>
+        <section class="pic-slider" data-picture-slider<?= $id !== '' ? ' id="' . $id . '"' : '' ?>>
             <div class="pic-slider__inner">
                 <div class="pic-slider__head">
                     <div>
@@ -169,13 +170,14 @@ if (!function_exists('render_picture_slider')) {
 
 <script>
 (function(){
+  // Cards can be replaced later by JavaScript (e.g. filled from the database).
+  // After changing a slider's cards, call: slider.dispatchEvent(new Event('slider:refresh'))
   document.querySelectorAll('[data-picture-slider]').forEach((slider) => {
     const track = slider.querySelector('.pic-slider__track');
-    const cards = Array.from(slider.querySelectorAll('.pic-slider__card'));
     const prevBtn = slider.querySelector('[data-prev]');
     const nextBtn = slider.querySelector('[data-next]');
     const dotsWrap = slider.querySelector('.pic-slider__dots');
-    if(!cards.length) return;
+    const cards = () => Array.from(slider.querySelectorAll('.pic-slider__card'));
 
     let index = 0;
 
@@ -188,7 +190,7 @@ if (!function_exists('render_picture_slider')) {
 
     function buildDots(){
       dotsWrap.innerHTML = '';
-      const count = Math.max(1, cards.length - visibleCount() + 1);
+      const count = Math.max(1, cards().length - visibleCount() + 1);
       for(let i = 0; i < count; i++){
         const dot = document.createElement('button');
         dot.type = 'button';
@@ -199,11 +201,13 @@ if (!function_exists('render_picture_slider')) {
     }
 
     function render(){
+      const list = cards();
+      if(!list.length){ prevBtn.disabled = true; nextBtn.disabled = true; return; }
       const vc = visibleCount();
-      const maxIndex = Math.max(0, cards.length - vc);
-      index = Math.min(index, maxIndex);
+      const maxIndex = Math.max(0, list.length - vc);
+      index = Math.max(0, Math.min(index, maxIndex));
 
-      const cardWidth = cards[0].getBoundingClientRect().width;
+      const cardWidth = list[0].getBoundingClientRect().width;
       const gap = parseFloat(getComputedStyle(track).gap) || 0;
       track.style.transform = `translateX(-${index * (cardWidth + gap)}px)`;
 
@@ -220,6 +224,8 @@ if (!function_exists('render_picture_slider')) {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => { buildDots(); render(); }, 150);
     });
+
+    slider.addEventListener('slider:refresh', () => { index = 0; buildDots(); render(); });
 
     buildDots();
     render();

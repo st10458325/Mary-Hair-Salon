@@ -16,8 +16,9 @@
  *   require_once __DIR__ . '/components/auth-form.php';
  *   render_auth_form('login');   // or 'signup'
  *
- * No backend yet — both forms just show a placeholder confirmation
- * on submit. Swap that for a real fetch() once auth exists.
+ * Uses Supabase Auth (assets/js/supabase-client.js): email + password,
+ * and "Continue with Google" (single sign-on). On sign-up the database
+ * trigger creates the user's row in `profiles` as a customer.
  * ---------------------------------------------------------------
  */
 
@@ -27,7 +28,7 @@ if (!function_exists('render_auth_form')) {
         $isLogin = $mode === 'login';
         $formId  = $isLogin ? 'loginForm' : 'signupForm';
         ?>
-        <form class="auth-form" id="<?= $formId ?>" data-auth-form="<?= $isLogin ? 'login' : 'signup' ?>">
+        <form class="auth-form" id="<?= $formId ?>" method="post" action="" data-auth-form="<?= $isLogin ? 'login' : 'signup' ?>">
 
             <?php if (!$isLogin): ?>
                 <div class="auth-form__row">
@@ -88,6 +89,13 @@ if (!function_exists('render_auth_form')) {
 
             <button type="submit" class="auth-form__submit">
                 <?= $isLogin ? 'Log In' : 'Create Account' ?>
+            </button>
+
+            <div class="auth-form__divider"><span>or</span></div>
+
+            <button type="button" class="auth-form__google" data-google-signin>
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 009 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 013.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 009 0 9 9 0 00.96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+                Continue with Google
             </button>
 
             <p class="auth-form__switch">
@@ -169,6 +177,27 @@ if (!function_exists('render_auth_form')) {
   }
   .auth-form__submit:hover{ opacity: 0.92; }
 
+  .auth-form__divider{
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--text-faint);
+  }
+  .auth-form__divider::before, .auth-form__divider::after{
+    content: ""; flex: 1; height: 1px; background: var(--glass-border);
+  }
+  .auth-form__google{
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    color: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    transition: border-color .15s ease;
+  }
+  .auth-form__google:hover{ border-color: var(--orange); }
+  .auth-form__google:disabled{ opacity: .6; }
+
   .auth-form__switch{
     text-align: center;
     font-size: 13px;
@@ -185,16 +214,15 @@ if (!function_exists('render_auth_form')) {
     padding: 10px 13px;
     }
     .auth-form__error[hidden]{ display: none; }
+    .auth-form__error--info{
+      color: #2e9e6b;
+      background: rgba(46,158,107,0.12);
+      border-color: rgba(46,158,107,0.3);
+    }
 </style>
 
 <script type="module">
-  import { auth, db } from '/assets/js/firebase-config.js';
-  import {
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    updateProfile
-  } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js";
-  import { doc, setDoc } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+  import { supabase, friendlyError } from './assets/js/supabase-client.js';
 
   // Password show/hide — delegated so it works for every auth-form on the page
   document.addEventListener('click', (e) => {
@@ -206,7 +234,7 @@ if (!function_exists('render_auth_form')) {
     btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
   });
 
-  function setFormError(form, message){
+  function setFormError(form, message, kind = 'error'){
     let errorEl = form.querySelector('.auth-form__error');
     if(!errorEl){
       errorEl = document.createElement('p');
@@ -214,6 +242,7 @@ if (!function_exists('render_auth_form')) {
       form.querySelector('.auth-form__submit').insertAdjacentElement('beforebegin', errorEl);
     }
     errorEl.textContent = message;
+    errorEl.classList.toggle('auth-form__error--info', kind === 'info');
     errorEl.hidden = !message;
   }
 
@@ -224,19 +253,26 @@ if (!function_exists('render_auth_form')) {
     btn.textContent = loading ? 'Please wait…' : btn.dataset.originalLabel;
   }
 
-  function friendlyAuthError(code){
-    const messages = {
-      'auth/email-already-in-use': "That email is already registered — try logging in instead.",
-      'auth/invalid-email': "That doesn't look like a valid email address.",
-      'auth/weak-password': 'Password should be at least 8 characters.',
-      'auth/invalid-credential': 'Incorrect email or password.',
-      'auth/user-not-found': 'No account found with that email.',
-      'auth/wrong-password': 'Incorrect email or password.',
-      'auth/too-many-requests': 'Too many attempts — please wait a moment and try again.',
-    };
-    return messages[code] || 'Something went wrong. Please try again.';
-  }
+  // ---- Google single sign-on ----
+  // Redirects to Google, then back to bookings.php already logged in.
+  // The database trigger creates the profile on the first Google login.
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-google-signin]');
+    if(!btn) return;
+    const form = btn.closest('[data-auth-form]');
+    btn.disabled = true;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: new URL('bookings.php', window.location.href).href },
+    });
+    if(error){
+      console.error(error);
+      if(form) setFormError(form, friendlyError(error));
+      btn.disabled = false;
+    }
+  });
 
+  // ---- Email + password ----
   document.addEventListener('submit', async (e) => {
     const form = e.target.closest('[data-auth-form]');
     if(!form) return;
@@ -254,28 +290,42 @@ if (!function_exists('render_auth_form')) {
     setFormLoading(form, true);
 
     try {
+      const email = String(data.get('email')).trim();
+      const password = String(data.get('password'));
+
       if(mode === 'login'){
-        await signInWithEmailAndPassword(auth, data.get('email'), data.get('password'));
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if(error) throw error;
       } else {
-        const name = data.get('name');
-        const surname = data.get('surname');
-        const cred = await createUserWithEmailAndPassword(auth, data.get('email'), data.get('password'));
-
-        await updateProfile(cred.user, { displayName: `${name} ${surname}`.trim() });
-
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          name,
-          surname,
-          email: data.get('email'),
-          contact: data.get('contact'),
-          createdAt: new Date().toISOString(),
+        // first_name / surname / contact are stored with the account; the
+        // on_auth_user_created trigger copies them into the profiles table.
+        const { data: result, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              first_name: String(data.get('name')).trim(),
+              surname: String(data.get('surname')).trim(),
+              contact: String(data.get('contact')).trim(),
+            },
+            emailRedirectTo: new URL('bookings.php', window.location.href).href,
+          },
         });
+        if(error) throw error;
+
+        // If "Confirm email" is switched on in Supabase there is no session yet.
+        if(!result.session){
+          setFormError(form, 'Account created! Check your email and click the link to confirm it, then log in.', 'info');
+          setFormLoading(form, false);
+          form.reset();
+          return;
+        }
       }
 
       window.location.href = 'bookings.php';
     } catch (err) {
       console.error(err);
-      setFormError(form, friendlyAuthError(err.code));
+      setFormError(form, friendlyError(err));
       setFormLoading(form, false);
     }
   });

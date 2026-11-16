@@ -37,8 +37,31 @@ android {
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${secret("GOOGLE_WEB_CLIENT_ID")}\"")
     }
 
+    // Release signing. The keystore and its passwords are NOT in git: they live in
+    // keystore.properties (git-ignored) next to this project, e.g.
+    //   storeFile=C:/path/to/mary-hair-salon-release.jks
+    //   storePassword=...   keyAlias=...   keyPassword=...
+    // Without that file (CI, a teammate's laptop) the release build is simply left unsigned,
+    // and debug builds are unaffected.
+    val keystoreProps = Properties().apply {
+        val f = rootProject.file("keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    val hasReleaseKeystore = keystoreProps.getProperty("storeFile")?.let { file(it).exists() } == true
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseKeystore) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
