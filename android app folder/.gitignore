@@ -13,3 +13,6 @@
 *.jks
 *.keystore
 keystore.properties
+
+# Stray copy of the website that must never be committed here
+/Mary-Hair-Salon-main/

@@ -24,8 +24,9 @@ if (!function_exists('render_featured_styles')) {
         $eyebrow = htmlspecialchars($opts['eyebrow'] ?? '');
         $title   = htmlspecialchars($opts['title']   ?? 'Featured Styles');
         $items   = $opts['items'] ?? [];
+        $id      = htmlspecialchars($opts['id'] ?? '');
         ?>
-        <section class="featured-style">
+        <section class="featured-style"<?= $id !== '' ? ' id="' . $id . '"' : '' ?>>
             <div class="featured-style__inner">
                 <div class="featured-style__head">
                     <?php if ($eyebrow !== ''): ?><p class="featured-style__eyebrow"><?= $eyebrow ?></p><?php endif; ?>
