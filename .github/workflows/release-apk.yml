@@ -1,0 +1,59 @@
+name: Release APK
+
+# Builds the app and publishes it as a GitHub Release.
+#   - Push a tag such as  v0.1.0  to release automatically, or
+#   - run it by hand from the Actions tab (workflow_dispatch) and type a version.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to create, e.g. v0.1.0'
+        required: true
+
+permissions:
+  contents: write   # needed to create the release and upload the APK
+
+jobs:
+  release:
+    name: Build and publish APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+      TAG: ${{ github.event.inputs.version || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Make the Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run the unit tests first
+        run: ./gradlew testDebugUnitTest
+
+      - name: Build the APK
+        run: ./gradlew assembleDebug
+
+      - name: Name the APK after the version
+        run: cp app/build/outputs/apk/debug/app-debug.apk "MaryHairSalon-${TAG}-debug.apk"
+
+      - name: Create the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Mary Hair Salon ${{ env.TAG }}
+          generate_release_notes: true   # lists the commits since the previous release
+          files: MaryHairSalon-${{ env.TAG }}-debug.apk
+          body: |
+            Debug-signed APK for testing on a phone (allow "install unknown apps").
+            The Google Play build needs a release keystore, which is not part of this repository.
