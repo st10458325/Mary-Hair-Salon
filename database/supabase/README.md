@@ -57,6 +57,20 @@ messages   (stand-alone: website contact form)
    ```
    Then in Android Studio: **File → Sync Project with Gradle Files** → Run.
 
+## Category and service pictures
+
+Every category and service has an original illustration (drawn from code, so no licence or privacy issues). The images live in a **public Storage bucket** called `salon-images`, and the `image` column of `categories` / `services` holds each picture's URL. The app loads them with Coil, which caches them on the phone.
+
+```
+cd seed
+node images/generate-images.js      # draws images/svg/*.svg   (only if you change the artwork)
+node images/render-images.js        # renders images/jpg/*.jpg (needs Chrome or Edge)
+node upload-images.js               # creates the bucket and uploads the 30 JPGs
+node seed.js                        # writes the image URLs into the tables
+```
+
+To use your own photos instead, upload files with the same names (`cat-braids.jpg`, `box-braids.jpg`, …) to the bucket, or just edit the `image` URL in the Table Editor.
+
 ## Google sign-in (SSO)
 
 1. In Google Cloud Console → APIs & Services → Credentials, create two OAuth client IDs:

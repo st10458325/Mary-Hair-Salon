@@ -115,8 +115,10 @@ async function main() {
   await upsert(supabase, 'profiles', profiles);
 
   // 3. Catalogue, bookings, messages.
-  await upsert(supabase, 'categories', data.categories);
-  await upsert(supabase, 'services', data.services);
+  // Pictures live in the public 'salon-images' Storage bucket (run `node upload-images.js` first).
+  const img = file => `${url.replace(/\/$/, '')}/storage/v1/object/public/salon-images/${file}.jpg`;
+  await upsert(supabase, 'categories', data.categories.map(c => ({ ...c, image: img('cat-' + c.id) })));
+  await upsert(supabase, 'services', data.services.map(sv => ({ ...sv, image: img(sv.id) })));
   await upsert(supabase, 'bookings', data.buildBookings(idByKey));
   await upsert(supabase, 'messages', data.messages);
 
