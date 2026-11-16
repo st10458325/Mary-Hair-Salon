@@ -1,6 +1,6 @@
 # GitHub Actions (CI/CD)
 
-Four workflows live in [.github/workflows/](../.github/workflows/). They run automatically on GitHub, and every one can also be started by hand from the **Actions** tab (**Run workflow**).
+Four workflows live in [.github/workflows/](../../.github/workflows/) at the **repository root** (GitHub only reads workflows from there). They all work inside the `android app folder/` directory. They run automatically on GitHub, and every one can also be started by hand from the **Actions** tab (**Run workflow**).
 
 | Workflow | Runs when | What it does |
 |---|---|---|

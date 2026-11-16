@@ -5,16 +5,16 @@ on:
   push:
     branches: [main, dev, supabase-salon-app]
     paths:
-      - 'app/**'
-      - '*.gradle.kts'
-      - 'gradle/**'
+      - 'android app folder/app/**'
+      - 'android app folder/*.gradle.kts'
+      - 'android app folder/gradle/**'
       - '.github/workflows/android-lint.yml'
   pull_request:
     branches: [main, dev]
     paths:
-      - 'app/**'
-      - '*.gradle.kts'
-      - 'gradle/**'
+      - 'android app folder/app/**'
+      - 'android app folder/*.gradle.kts'
+      - 'android app folder/gradle/**'
   workflow_dispatch:
 
 concurrency:
@@ -29,6 +29,9 @@ jobs:
     name: Lint (debug)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android app folder
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +41,8 @@ jobs:
           java-version: 17
 
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: android app folder
 
       - name: Make the Gradle wrapper executable
         run: chmod +x gradlew
@@ -51,6 +56,6 @@ jobs:
         with:
           name: lint-report
           path: |
-            app/build/reports/lint-results-debug.html
-            app/build/reports/lint-results-debug.xml
+            android app folder/app/build/reports/lint-results-debug.html
+            android app folder/app/build/reports/lint-results-debug.xml
           if-no-files-found: warn

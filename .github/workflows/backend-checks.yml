@@ -5,12 +5,12 @@ on:
   push:
     branches: [main, dev, supabase-salon-app]
     paths:
-      - 'database/**'
+      - 'android app folder/database/**'
       - '.github/workflows/backend-checks.yml'
   pull_request:
     branches: [main, dev]
     paths:
-      - 'database/**'
+      - 'android app folder/database/**'
   workflow_dispatch:
 
 concurrency:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: database/supabase/seed
+        working-directory: android app folder/database/supabase/seed
     steps:
       - uses: actions/checkout@v4
 
@@ -63,7 +63,7 @@ jobs:
       - name: Check the migration files
         run: |
           set -e
-          cd database/supabase/migrations
+          cd "android app folder/database/supabase/migrations"
           for f in 001_schema.sql 002_security.sql 003_api.sql; do
             test -s "$f" || { echo "::error::$f is missing or empty"; exit 1; }
           done
@@ -81,7 +81,7 @@ jobs:
         run: |
           # A JWT (Supabase keys look like eyJ...) must never be committed. The app's anon key lives
           # in local.properties, the service_role key only in the git-ignored .env file.
-          if grep -rEn "eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}" database app/src --include=*.sql --include=*.example --include=*.js --include=*.md --include=*.kt --include=*.json --exclude-dir=node_modules; then
+          if grep -rEn "eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}" "android app folder/database" "android app folder/app/src" --include=*.sql --include=*.example --include=*.js --include=*.md --include=*.kt --include=*.json --exclude-dir=node_modules; then
             echo "::error::Something that looks like a JWT / API key is committed"
             exit 1
           fi
@@ -93,7 +93,7 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: database/supabase/seed/images
+        working-directory: android app folder/database/supabase/seed/images
     steps:
       - uses: actions/checkout@v4
 
@@ -111,4 +111,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: picture-svgs
-          path: database/supabase/seed/images/svg
+          path: android app folder/database/supabase/seed/images/svg

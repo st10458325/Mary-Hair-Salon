@@ -21,6 +21,9 @@ jobs:
     name: Unit tests + debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android app folder
     env:
       # Optional. Without them the app still builds (it just shows "not configured" at runtime).
       # The anon key is public by design; never put the service_role key here.
@@ -39,6 +42,8 @@ jobs:
 
       - name: Set up Gradle (with build cache)
         uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: android app folder
 
       - name: Make the Gradle wrapper executable
         run: chmod +x gradlew
@@ -48,7 +53,7 @@ jobs:
 
       - name: Summarise test results
         if: always()
-        run: node .github/scripts/test-summary.js
+        run: node "$GITHUB_WORKSPACE/.github/scripts/test-summary.js"
 
       - name: Upload test reports
         if: always()
@@ -56,8 +61,8 @@ jobs:
         with:
           name: unit-test-reports
           path: |
-            app/build/reports/tests/testDebugUnitTest
-            app/build/test-results/testDebugUnitTest
+            android app folder/app/build/reports/tests/testDebugUnitTest
+            android app folder/app/build/test-results/testDebugUnitTest
           if-no-files-found: warn
 
       - name: Build debug APK
@@ -67,5 +72,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: android app folder/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
