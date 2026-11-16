@@ -1,0 +1,114 @@
+name: Backend checks
+
+# Guards the Supabase side of the project: seed data, SQL files and the picture library.
+on:
+  push:
+    branches: [main, dev, supabase-salon-app]
+    paths:
+      - 'database/**'
+      - '.github/workflows/backend-checks.yml'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'database/**'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  seed-data:
+    name: Seed data (10+ rows per table)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: database/supabase/seed
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax-check the scripts
+        run: |
+          node --check seed.js
+          node --check seed-data.js
+          node --check upload-images.js
+
+      - name: Dry-run the seed (fails if any table has fewer than 10 rows)
+        run: node seed.js --dry-run | tee "$RUNNER_TEMP/seed.txt"
+
+      - name: Add the result to the job summary
+        run: |
+          {
+            echo '### Seed data (dry run)'
+            echo '```'
+            cat "$RUNNER_TEMP/seed.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  sql-files:
+    name: SQL migrations and secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the migration files
+        run: |
+          set -e
+          cd database/supabase/migrations
+          for f in 001_schema.sql 002_security.sql 003_api.sql; do
+            test -s "$f" || { echo "::error::$f is missing or empty"; exit 1; }
+          done
+          # Every table must have Row Level Security switched on.
+          for t in profiles categories services bookings messages; do
+            grep -qiE "alter table public\.$t +enable row level security" 002_security.sql \
+              || { echo "::error::Row Level Security is not enabled for $t"; exit 1; }
+          done
+          # The double-booking protection must still be there.
+          grep -q "bookings_no_double_booking" 001_schema.sql \
+            || { echo "::error::the double-booking unique index is missing"; exit 1; }
+          echo "SQL migration checks passed."
+
+      - name: Make sure no API key is committed
+        run: |
+          # A JWT (Supabase keys look like eyJ...) must never be committed. The app's anon key lives
+          # in local.properties, the service_role key only in the git-ignored .env file.
+          if grep -rEn "eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}" database app/src --include=*.sql --include=*.example --include=*.js --include=*.md --include=*.kt --include=*.json --exclude-dir=node_modules; then
+            echo "::error::Something that looks like a JWT / API key is committed"
+            exit 1
+          fi
+          echo "No keys found."
+
+  pictures:
+    name: Category and service pictures
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: database/supabase/seed/images
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Regenerate the SVG artwork
+        run: node generate-images.js
+
+      - name: Check every category and service has a picture
+        run: node verify-images.js
+
+      - name: Upload the generated SVGs
+        uses: actions/upload-artifact@v4
+        with:
+          name: picture-svgs
+          path: database/supabase/seed/images/svg

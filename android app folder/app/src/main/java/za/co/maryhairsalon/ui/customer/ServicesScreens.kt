@@ -12,14 +12,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -41,13 +40,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
 import za.co.maryhairsalon.data.model.Service
 import za.co.maryhairsalon.data.repository.CategoryWithCount
 import za.co.maryhairsalon.ui.CollectMessages
@@ -130,40 +132,46 @@ fun ServicesTab(
 
 @Composable
 private fun CategoryTile(item: CategoryWithCount, modifier: Modifier, onClick: () -> Unit) {
-    GlassCard(modifier.height(150.dp), onClick = onClick) {
-        CategoryImage(item.category.image, item.category.label, Modifier.size(48.dp))
-        Spacer(Modifier.weight(1f))
-        Text(item.category.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (item.category.description.isNotBlank()) {
-            Text(item.category.description, style = MaterialTheme.typography.bodySmall, color = Brand.TextDim, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    GlassCard(modifier, onClick = onClick, contentPadding = 0.dp) {
+        PhotoBanner(item.category.image, item.category.label, Modifier.fillMaxWidth().aspectRatio(4f / 3f))
+        Column(Modifier.padding(12.dp)) {
+            Text(item.category.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (item.category.description.isNotBlank()) {
+                Text(item.category.description, style = MaterialTheme.typography.bodySmall, color = Brand.TextDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "${item.serviceCount} service${if (item.serviceCount == 1) "" else "s"}",
+                style = MaterialTheme.typography.labelMedium,
+                color = Brand.OrangeLight,
+            )
         }
-        Text(
-            "${item.serviceCount} service${if (item.serviceCount == 1) "" else "s"}",
-            style = MaterialTheme.typography.labelMedium,
-            color = Brand.OrangeLight,
-        )
     }
 }
 
-/** Category photo from its image URL; shows a person avatar when there is no URL or it fails to load. */
+/**
+ * Picture loaded from an image URL (Supabase Storage). Coil caches it in memory and on disk, so it
+ * only downloads once. While loading, or when there is no URL / the load fails (offline, bad link),
+ * it shows a soft orange placeholder instead of crashing or leaving a hole in the layout.
+ */
 @Composable
-private fun CategoryImage(url: String, label: String, modifier: Modifier = Modifier) {
-    val avatar: @Composable () -> Unit = {
+fun PhotoBanner(url: String, label: String, modifier: Modifier = Modifier) {
+    val placeholder: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize().background(Brand.OrangeSoft), contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.Person, contentDescription = null, tint = Brand.OrangeLight, modifier = Modifier.fillMaxSize(0.6f))
+            Icon(Icons.Filled.Person, contentDescription = null, tint = Brand.OrangeLight, modifier = Modifier.fillMaxSize(0.35f))
         }
     }
-    Box(modifier.clip(CircleShape)) {
+    Box(modifier) {
         if (url.isBlank()) {
-            avatar()
+            placeholder()
         } else {
             SubcomposeAsyncImage(
-                model = url.trim(),
+                model = ImageRequest.Builder(LocalContext.current).data(url.trim()).crossfade(true).build(),
                 contentDescription = label,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-                loading = { avatar() },
-                error = { avatar() },
+                loading = { placeholder() },
+                error = { placeholder() },
             )
         }
     }
@@ -171,19 +179,23 @@ private fun CategoryImage(url: String, label: String, modifier: Modifier = Modif
 
 @Composable
 private fun DealCard(service: Service, onClick: () -> Unit) {
-    GlassCard(Modifier.width(220.dp), onClick = onClick) {
-        Text(
-            "Save ${service.discount.toInt()}%",
-            modifier = Modifier.clip(RoundedCornerShape(50)).background(Brand.Success.copy(alpha = 0.2f)).padding(horizontal = 10.dp, vertical = 4.dp),
-            color = Brand.Success,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(service.title, style = MaterialTheme.typography.titleMedium)
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(formatZar(service.price), color = Brand.TextFaint, textDecoration = TextDecoration.LineThrough, style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.width(6.dp))
-            Text(formatZar(service.discountedPrice), color = Brand.OrangeLight, fontWeight = FontWeight.Bold)
+    GlassCard(Modifier.width(220.dp), onClick = onClick, contentPadding = 0.dp) {
+        Box {
+            PhotoBanner(service.image, service.title, Modifier.fillMaxWidth().aspectRatio(4f / 3f))
+            Text(
+                "Save ${service.discount.toInt()}%",
+                modifier = Modifier.padding(10.dp).clip(RoundedCornerShape(50)).background(Color(0xE6102418)).padding(horizontal = 10.dp, vertical = 4.dp),
+                color = Brand.Success,
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
+        Column(Modifier.padding(12.dp)) {
+            Text(service.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(formatZar(service.price), color = Brand.TextFaint, textDecoration = TextDecoration.LineThrough, style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.width(6.dp))
+                Text(formatZar(service.discountedPrice), color = Brand.OrangeLight, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -192,7 +204,9 @@ private fun DealCard(service: Service, onClick: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ServiceCard(service: Service, onBook: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth()) {
+    GlassCard(Modifier.fillMaxWidth(), contentPadding = 0.dp) {
+        PhotoBanner(service.image, service.title, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+        Column(Modifier.padding(16.dp)) {
         Text(service.title, style = MaterialTheme.typography.titleLarge)
         if (service.description.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
@@ -222,6 +236,7 @@ fun ServiceCard(service: Service, onBook: () -> Unit) {
                 }
             }
             GradientButton("Book Now", onBook, Modifier.width(130.dp))
+        }
         }
     }
 }
